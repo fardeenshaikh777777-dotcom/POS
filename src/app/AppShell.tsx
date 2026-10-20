@@ -190,20 +190,36 @@ export function AppShell() {
             </div>
             <div className="brand__sub">Clifton Branch · v2.0</div>
           </div>
-          <div className="mobile-role-selector" style={{ display: 'none' }}>
-            <select
-              value={profile?.role || 'owner'}
-              onChange={(e) => switchDemoRole(e.target.value as AppRole)}
-              className="input"
-              aria-label="Switch demo role on mobile"
-              style={{ padding: '2px 8px', fontSize: '11px', height: '28px', minHeight: '28px' }}
+          <div className="mobile-header-actions">
+            <div className="mobile-role-selector">
+              <select
+                value={profile?.role || 'owner'}
+                onChange={(e) => switchDemoRole(e.target.value as AppRole)}
+                className="input"
+                aria-label="Switch demo role on mobile"
+                style={{ padding: '2px 8px', fontSize: '11px', height: '28px', minHeight: '28px' }}
+              >
+                <option value="owner">👑 Owner</option>
+                <option value="manager">💼 Manager</option>
+                <option value="cashier">💵 Cashier</option>
+                <option value="kitchen">🍳 Kitchen</option>
+                <option value="waiter">🍽️ Waiter</option>
+              </select>
+            </div>
+            <button
+              type="button"
+              className="mobile-signout-btn"
+              onClick={signOut}
+              title="Sign out of Karachi Express"
+              aria-label="Sign out"
             >
-              <option value="owner">👑 Owner</option>
-              <option value="manager">💼 Manager</option>
-              <option value="cashier">💵 Cashier</option>
-              <option value="kitchen">🍳 Kitchen</option>
-              <option value="waiter">🍽️ Waiter</option>
-            </select>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+              <span>Sign out</span>
+            </button>
           </div>
         </div>
 
@@ -222,6 +238,21 @@ export function AppShell() {
               <span className="nav__label">{m.label}</span>
             </NavLink>
           ))}
+          {/* Mobile-only nav Sign out button */}
+          <button
+            type="button"
+            className="mobile-nav-signout"
+            onClick={signOut}
+            title="Sign out of Karachi Express"
+            aria-label="Sign out"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            <span>Sign out</span>
+          </button>
         </nav>
 
         {/* Restored Sidebar Footer: User, Role Switcher, Sign out */}
@@ -302,15 +333,31 @@ export function AppShell() {
               </div>
             )}
 
-            {/* Account Monogram / Initials (No Photo Image) */}
-            <div className="account-chip">
-              <div className="account-avatar" aria-hidden="true">
-                {initials}
+            {/* Account Monogram / Initials (No Photo Image) + Topbar Sign Out */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <div className="account-chip">
+                <div className="account-avatar" aria-hidden="true">
+                  {initials}
+                </div>
+                <div className="account-details">
+                  <span className="account-name">{profile?.full_name || 'System Owner'}</span>
+                  <span className="account-role">{profile?.role?.toUpperCase() || 'OWNER'}</span>
+                </div>
               </div>
-              <div className="account-details">
-                <span className="account-name">{profile?.full_name || 'System Owner'}</span>
-                <span className="account-role">{profile?.role?.toUpperCase() || 'OWNER'}</span>
-              </div>
+              <button
+                type="button"
+                className="topbar-signout-btn"
+                onClick={signOut}
+                title="Sign out of Karachi Express"
+                aria-label="Sign out"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+                <span className="topbar-signout-text">Sign out</span>
+              </button>
             </div>
           </div>
         </header>
