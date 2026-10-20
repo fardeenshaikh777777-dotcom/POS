@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useRef, useCallback } from 'react'
 import { formatPKR } from '@/lib/format'
+import type { DashboardDateRange } from './api'
 
 // Generate smooth cubic Bézier SVG path from discrete data points
 function buildSmoothSpline(points: Array<{ x: number; y: number }>): string {
@@ -29,10 +30,12 @@ export interface OperationalCostChartProps {
     label: string
     sales: number
     cost: number
+    profit?: number
   }>
   netSales: number
-  dateRange: 'today' | 'week' | 'month'
-  onDateRangeChange: (range: 'today' | 'week' | 'month') => void
+  dateRange: DashboardDateRange
+  onDateRangeChange: (range: DashboardDateRange) => void
+  dateLabel?: string
 }
 
 export const OperationalCostChart = React.memo(function OperationalCostChart({
@@ -40,8 +43,11 @@ export const OperationalCostChart = React.memo(function OperationalCostChart({
   netSales,
   dateRange,
   onDateRangeChange,
+  dateLabel,
 }: OperationalCostChartProps) {
-  const [selectedIdx, setSelectedIdx] = useState<number>(dateRange === 'week' ? 4 : dateRange === 'today' ? 5 : 2)
+  const [selectedIdx, setSelectedIdx] = useState<number>(
+    dateRange === 'week' ? 4 : (dateRange === 'today' || dateRange === 'yesterday') ? 5 : 2
+  )
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null)
   const svgRef = useRef<SVGSVGElement | null>(null)
 
@@ -196,7 +202,7 @@ export const OperationalCostChart = React.memo(function OperationalCostChart({
       <div className="chart-header">
         <div>
           <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.02em' }}>
-            Operational Cost Vs Revenue
+            Operational Cost Vs Revenue {dateLabel ? `· ${dateLabel}` : ''}
           </h2>
           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginTop: '6px' }}>
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
@@ -239,22 +245,24 @@ export const OperationalCostChart = React.memo(function OperationalCostChart({
             <select
               value={dateRange}
               onChange={(e) => {
-                const val = e.target.value as 'today' | 'week' | 'month'
+                const val = e.target.value as DashboardDateRange
                 onDateRangeChange(val)
-                setSelectedIdx(val === 'week' ? 4 : val === 'today' ? 5 : 2)
+                setSelectedIdx(val === 'week' ? 4 : (val === 'today' || val === 'yesterday') ? 5 : 2)
               }}
               className="input"
               style={{ minHeight: '32px', padding: '0 8px', fontSize: '12px', borderRadius: 'var(--radius)', fontWeight: 600 }}
               aria-label="Filter chart range"
             >
-              <option value="week">Weekly (Daily)</option>
-              <option value="today">Today (Hourly)</option>
-              <option value="month">Monthly (Weeks)</option>
+              <option value="today">🟢 Today (Hourly)</option>
+              <option value="yesterday">⏪ Yesterday (Hourly)</option>
+              <option value="week">📅 Last 7 Days (Daily)</option>
+              <option value="month">🗓️ This Month (Weeks)</option>
+              {dateRange === 'custom' && <option value="custom">📅 Custom Date</option>}
             </select>
           </div>
 
           {/* Legend: Sales Histogram (Prices) + Sells Trend + Operational Cost */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '12px', fontWeight: 600 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', fontSize: '12px', fontWeight: 600, flexWrap: 'wrap' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#EA580C' }}>
               <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: 'linear-gradient(180deg, #FFA27B 0%, #EA580C 100%)' }} />
               Sales Histogram (Prices)
@@ -277,6 +285,7 @@ export const OperationalCostChart = React.memo(function OperationalCostChart({
           ref={svgRef}
           viewBox="0 0 780 250"
           style={{ width: '100%', height: '100%', display: 'block', cursor: 'pointer' }}
+          onPointerDown={handlePointerMove}
           onPointerMove={handlePointerMove}
           onPointerLeave={handlePointerLeave}
           onClick={handleClick}

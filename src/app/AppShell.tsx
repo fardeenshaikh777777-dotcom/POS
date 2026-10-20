@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { Badge, Button } from '@/components/ui'
+import { MobileBottomNav } from '@/components/MobileBottomNav'
 import { modulesFor, MODULES, type ModuleKey } from '@/lib/modules'
 import type { AppRole } from '@/types/domain'
 
@@ -359,6 +360,9 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
+
+      {/* Mobile Bottom Navigation Bar (Active on mobile screens < 860px) */}
+      <MobileBottomNav onSignOut={signOut} />
     </div>
   )
 }

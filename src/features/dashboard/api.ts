@@ -3,6 +3,22 @@ import { Storage } from '@/lib/storage'
 import { getKarachiBusinessDate, getKarachiHour, normalizeKarachiDate, formatTimeAgo } from '@/lib/format'
 import type { DashboardMetrics, Order } from '@/types/domain'
 
+export type DashboardDateRange = 'today' | 'yesterday' | 'week' | 'month' | 'custom'
+
+export interface LiveCurrentStatus {
+  todaySales: number
+  todayOrdersCount: number
+  todayNetProfit: number
+  activeDrawerCash: number
+  activeCashSessionId?: string | null
+  occupiedTablesCount: number
+  totalTablesCount: number
+  kitchenPendingCount: number
+  karachiTime: string
+  karachiDate: string
+  isOpen: boolean
+}
+
 export interface DashboardDetails {
   metrics: DashboardMetrics
   recentOrders: Array<{
@@ -98,6 +114,14 @@ export interface DashboardDetails {
     cost: number
     profit?: number
   }>
+  liveCurrentStatus: LiveCurrentStatus
+  dateFilterInfo: {
+    range: DashboardDateRange
+    startDate: string
+    endDate: string
+    label: string
+    isSingleDate: boolean
+  }
 }
 
 export async function fetchDashboardMetrics(
@@ -273,21 +297,52 @@ export async function fetchDashboardMetrics(
 
 export async function fetchCompleteDashboardData(
   branchId: string,
-  range: 'today' | 'week' | 'month' = 'today'
+  range: DashboardDateRange = 'today',
+  customDate?: string,
+  customEndDate?: string
 ): Promise<DashboardDetails> {
   const today = getKarachiBusinessDate()
   let start = today
-  if (range === 'week') {
+  let end = today
+  let label = `Today (${today})`
+  let isSingleDate = true
+
+  if (range === 'today') {
+    start = today
+    end = today
+    label = `Today (${today})`
+    isSingleDate = true
+  } else if (range === 'yesterday') {
+    const d = new Date()
+    d.setDate(d.getDate() - 1)
+    const yesterday = getKarachiBusinessDate(d)
+    start = yesterday
+    end = yesterday
+    label = `Yesterday (${yesterday})`
+    isSingleDate = true
+  } else if (range === 'custom') {
+    start = customDate ? normalizeKarachiDate(customDate) : today
+    end = customEndDate ? normalizeKarachiDate(customEndDate) : start
+    label = start === end ? `Date: ${start}` : `${start} to ${end}`
+    isSingleDate = start === end
+  } else if (range === 'week') {
     const d = new Date()
     d.setDate(d.getDate() - 7)
     start = getKarachiBusinessDate(d)
+    end = today
+    label = 'Last 7 Days'
+    isSingleDate = false
   } else if (range === 'month') {
     const d = new Date()
     d.setDate(d.getDate() - 30)
     start = getKarachiBusinessDate(d)
+    end = today
+    label = 'This Month (30 Days)'
+    isSingleDate = false
   }
 
-  const metrics = await fetchDashboardMetrics(branchId, start, today)
+  // Fetch metrics for chosen date/range
+  const metrics = await fetchDashboardMetrics(branchId, start, end)
   const staff = Storage.getStaff(branchId)
   const menuItems = Storage.getMenuItems(branchId)
   const categories = Storage.getCategories(branchId)
@@ -317,15 +372,24 @@ export async function fetchCompleteDashboardData(
     }
   }
 
-  // Sort orders by created_at descending so newest orders appear first
+  // Sort orders by created_at descending
   const sortedOrders = [...orders].sort((a, b) => {
     const tA = new Date(a.created_at || 0).getTime()
     const tB = new Date(b.created_at || 0).getTime()
     return tB - tA
   })
 
-  // Recent Orders (Stream of real operational orders)
-  const recentOrders = sortedOrders.slice(0, 8).map((o, idx) => {
+  // Prioritize orders matching the selected date range if any exist
+  const matchingOrders = sortedOrders.filter((o) => {
+    const oDate = o.business_date
+      ? normalizeKarachiDate(o.business_date)
+      : (o.created_at ? normalizeKarachiDate(o.created_at) : today)
+    return oDate >= start && oDate <= end
+  })
+  const displayOrders = matchingOrders.length > 0 ? matchingOrders : sortedOrders
+
+  // Recent Orders (Stream of operational orders)
+  const recentOrders = displayOrders.slice(0, 8).map((o, idx) => {
     const firstItem = o.items?.[0]
     const matchingDish = menuItems.find(
       (m) => m.id === firstItem?.menu_item_id || m.name === firstItem?.item_name
@@ -535,41 +599,56 @@ export async function fetchCompleteDashboardData(
   const posWeek = computePeriodPos(weekOrdersList, Math.round(baseTodaySales * 5.4), Math.round(baseTodayBills * 5.2), '9:00 PM')
   const posMonth = computePeriodPos(monthOrdersList, Math.round(baseTodaySales * 22.5), Math.round(baseTodayBills * 21), '9:00 PM')
 
-  // Trend Data calculated dynamically from real orders and expenses
-  let trendData: Array<{ label: string; sales: number; cost: number }> = []
+  // Compute POS activity for the current selected filter
+  const currentFilterOrders = orders.filter((o) => {
+    const oDate = o.business_date
+      ? normalizeKarachiDate(o.business_date)
+      : (o.created_at ? normalizeKarachiDate(o.created_at) : today)
+    return oDate >= start && oDate <= end
+  })
+  const currentPosActivity = computePeriodPos(
+    currentFilterOrders,
+    metrics.net_sales,
+    metrics.total_orders,
+    '8:00 PM'
+  )
 
-  if (range === 'today') {
+  // Trend Data calculated dynamically from real orders and expenses
+  let trendData: Array<{ label: string; sales: number; cost: number; profit?: number }> = []
+
+  if (isSingleDate) {
+    // Single Day Hourly breakdown (Today, Yesterday, or specific selected Date)
     const hours = ['10 AM', '12 PM', '2 PM', '4 PM', '6 PM', '8 PM', '10 PM', '12 AM']
     const hourMap: Record<string, { sales: number; cost: number }> = {}
     hours.forEach((h) => {
       hourMap[h] = { sales: 0, cost: 0 }
     })
 
-    // Bin today's orders
-    const todayOrders = orders.filter((o) => {
+    // Bin the target single day's non-cancelled orders
+    const dayOrders = orders.filter((o) => {
       const oDate = o.business_date
         ? normalizeKarachiDate(o.business_date)
         : (o.created_at ? normalizeKarachiDate(o.created_at) : today)
-      return oDate === today && o.status !== 'cancelled'
+      return oDate === start && o.status !== 'cancelled'
     })
 
-    todayOrders.forEach((o) => {
+    dayOrders.forEach((o) => {
       const h = o.created_at ? getKarachiHour(new Date(o.created_at)) : 12
-      let label = '12 PM'
-      if (h <= 10) label = '10 AM'
-      else if (h <= 12) label = '12 PM'
-      else if (h <= 14) label = '2 PM'
-      else if (h <= 16) label = '4 PM'
-      else if (h <= 18) label = '6 PM'
-      else if (h <= 20) label = '8 PM'
-      else if (h <= 22) label = '10 PM'
-      else label = '12 AM'
-      hourMap[label].sales += o.total
+      let l = '12 PM'
+      if (h <= 10) l = '10 AM'
+      else if (h <= 12) l = '12 PM'
+      else if (h <= 14) l = '2 PM'
+      else if (h <= 16) l = '4 PM'
+      else if (h <= 18) l = '6 PM'
+      else if (h <= 20) l = '8 PM'
+      else if (h <= 22) l = '10 PM'
+      else l = '12 AM'
+      hourMap[l].sales += o.total
     })
 
-    const totalTodaySales = Object.values(hourMap).reduce((acc, h) => acc + h.sales, 0)
-    if (totalTodaySales === 0) {
-      const base = Math.max(metrics.net_sales, 7200)
+    const totalDaySales = Object.values(hourMap).reduce((acc, h) => acc + h.sales, 0)
+    if (totalDaySales === 0) {
+      const base = Math.max(metrics.net_sales, range === 'today' ? 7200 : 0)
       const weights: Record<string, number> = {
         '10 AM': 0.35,
         '12 PM': 0.85,
@@ -580,16 +659,16 @@ export async function fetchCompleteDashboardData(
         '10 PM': 1.40,
         '12 AM': 0.45,
       }
-      trendData = hours.map((label) => {
-        const s = Math.round(base * (weights[label] || 0.5))
+      trendData = hours.map((l) => {
+        const s = base > 0 ? Math.round(base * (weights[l] || 0.5)) : 0
         const c = Math.round(s * 0.42)
-        return { label, sales: s, cost: c, profit: s - c }
+        return { label: l, sales: s, cost: c, profit: s - c }
       })
     } else {
-      trendData = hours.map((label) => {
-        const s = hourMap[label].sales
+      trendData = hours.map((l) => {
+        const s = hourMap[l].sales
         const c = Math.round(s * 0.42)
-        return { label, sales: s, cost: c, profit: s - c }
+        return { label: l, sales: s, cost: c, profit: s - c }
       })
     }
   } else if (range === 'week') {
@@ -601,7 +680,7 @@ export async function fetchCompleteDashboardData(
       const oDate = o.business_date
         ? normalizeKarachiDate(o.business_date)
         : (o.created_at ? normalizeKarachiDate(o.created_at) : today)
-      return oDate >= start && oDate <= today && o.status !== 'cancelled'
+      return oDate >= start && oDate <= end && o.status !== 'cancelled'
     })
 
     weekOrders.forEach((o) => {
@@ -624,16 +703,16 @@ export async function fetchCompleteDashboardData(
         Sat: 1.80,
         Sun: 1.60,
       }
-      trendData = days.map((label) => {
-        const s = Math.round(base * (weights[label] || 1))
+      trendData = days.map((l) => {
+        const s = Math.round(base * (weights[l] || 1))
         const c = Math.round(s * 0.44)
-        return { label, sales: s, cost: c, profit: s - c }
+        return { label: l, sales: s, cost: c, profit: s - c }
       })
     } else {
-      trendData = days.map((label) => {
-        const s = dayMap[label] || 0
+      trendData = days.map((l) => {
+        const s = dayMap[l] || 0
         const c = Math.round(s * 0.45)
-        return { label, sales: s, cost: c, profit: s - c }
+        return { label: l, sales: s, cost: c, profit: s - c }
       })
     }
   } else {
@@ -644,7 +723,7 @@ export async function fetchCompleteDashboardData(
       const oDate = o.business_date
         ? normalizeKarachiDate(o.business_date)
         : (o.created_at ? normalizeKarachiDate(o.created_at) : today)
-      return oDate >= start && oDate <= today && o.status !== 'cancelled'
+      return oDate >= start && oDate <= end && o.status !== 'cancelled'
     })
 
     monthOrders.forEach((o) => {
@@ -664,16 +743,16 @@ export async function fetchCompleteDashboardData(
         'Week 3': 1.25,
         'Week 4': 1.40,
       }
-      trendData = weeks.map((label) => {
-        const s = Math.round(base * (weights[label] || 1))
+      trendData = weeks.map((l) => {
+        const s = Math.round(base * (weights[l] || 1))
         const c = Math.round(s * 0.43)
-        return { label, sales: s, cost: c, profit: s - c }
+        return { label: l, sales: s, cost: c, profit: s - c }
       })
     } else {
-      trendData = weeks.map((label) => {
-        const s = weekMap[label] || 0
+      trendData = weeks.map((l) => {
+        const s = weekMap[l] || 0
         const c = Math.round(s * 0.44)
-        return { label, sales: s, cost: c, profit: s - c }
+        return { label: l, sales: s, cost: c, profit: s - c }
       })
     }
   }
@@ -693,6 +772,89 @@ export async function fetchCompleteDashboardData(
     { label: 'Outlet 08', outletName: 'Malir Cantt', sales: Math.round(baseSales * 1.05), cost: Math.round(baseCost * 1.20), profit: Math.round(baseSales * 1.05) - Math.round(baseCost * 1.20) },
   ]
 
+  // Live Current Operations Status at this very second (Today's live reality)
+  const todayLiveOrders = orders.filter((o) => {
+    const oDate = o.business_date
+      ? normalizeKarachiDate(o.business_date)
+      : (o.created_at ? normalizeKarachiDate(o.created_at) : today)
+    return oDate === today && o.status !== 'cancelled'
+  })
+  const todayLiveSales = todayLiveOrders.reduce((sum, o) => sum + (o.total || 0), 0)
+  const todayExpensesList = Storage.getExpenses(branchId).filter((e) => {
+    const eDate = e.created_at ? normalizeKarachiDate(e.created_at) : today
+    return eDate === today
+  })
+  const todayExpensesTotal = todayExpensesList.reduce((sum, e) => sum + (e.amount || 0), 0)
+  const todayNetProfit = todayLiveSales - todayExpensesTotal
+
+  const tables = Storage.getTables(branchId)
+  const occupiedTablesCount = tables.filter((t) => Boolean(t.current_order_id)).length
+  const kitchenPendingCount = orders.filter((o) => o.status === 'sent_to_kitchen' || o.status === 'preparing').length
+
+  let activeDrawerCash = 0
+  let activeCashSessionId: string | null = null
+  try {
+    const rawSess = localStorage.getItem(`karachi_pos_active_session_${branchId}`)
+    if (rawSess) {
+      const sess = JSON.parse(rawSess)
+      activeCashSessionId = sess.id
+      const opening = sess.opening_float || 0
+      const movementsRaw = localStorage.getItem(`kpos_cash_movements_${sess.id}`)
+      let payIns = 0
+      let payOuts = 0
+      if (movementsRaw) {
+        const moves = JSON.parse(movementsRaw)
+        moves.forEach((m: { kind: string; amount: number }) => {
+          if (m.kind === 'pay_in') payIns += m.amount || 0
+          else if (m.kind === 'pay_out' || m.kind === 'expense') payOuts += m.amount || 0
+        })
+      }
+      activeDrawerCash = opening + todayLiveSales + payIns - payOuts
+    }
+  } catch {
+    // ignore
+  }
+
+  const now = new Date()
+  let karachiTimeStr = ''
+  let karachiDateStr = ''
+  try {
+    karachiTimeStr = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Karachi',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true,
+    }).format(now)
+    karachiDateStr = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'Asia/Karachi',
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    }).format(now)
+  } catch {
+    karachiTimeStr = now.toLocaleTimeString()
+    karachiDateStr = today
+  }
+
+  const currentH = getKarachiHour(now)
+  const isOpen = currentH >= 11 || currentH <= 3 // Karachi restaurants open 11 AM - 3 AM
+
+  const liveCurrentStatus: LiveCurrentStatus = {
+    todaySales: todayLiveSales,
+    todayOrdersCount: todayLiveOrders.length,
+    todayNetProfit,
+    activeDrawerCash,
+    activeCashSessionId,
+    occupiedTablesCount,
+    totalTablesCount: tables.length,
+    kitchenPendingCount,
+    karachiTime: karachiTimeStr,
+    karachiDate: karachiDateStr,
+    isOpen,
+  }
+
   return {
     metrics,
     recentOrders,
@@ -700,7 +862,7 @@ export async function fetchCompleteDashboardData(
     employeeStatus: { total: staffTotal, onDuty, onBreak, absent },
     salesOrderTypes: { dineInPct, deliveryPct, pickupPct },
     trendingDish,
-    posActivity: posToday,
+    posActivity: currentPosActivity,
     posActivities: {
       today: posToday,
       week: posWeek,
@@ -708,5 +870,13 @@ export async function fetchCompleteDashboardData(
     },
     outletTrends,
     trendData,
+    liveCurrentStatus,
+    dateFilterInfo: {
+      range,
+      startDate: start,
+      endDate: end,
+      label,
+      isSingleDate,
+    },
   }
 }
