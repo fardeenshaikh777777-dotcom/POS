@@ -75,49 +75,13 @@ export function DashboardPage() {
   const { profile } = useAuth()
   const branchId = profile?.branch_id || '635c7b14-54be-4b93-a75a-e2ddc0323827'
 
-  // Default date filter is TODAY as explicitly required by user
+  // Default to Today's sale so opening today displays today's metrics
   const [dateRange, setDateRange] = useState<DashboardDateRange>('today')
   const [customDate, setCustomDate] = useState<string>(getKarachiBusinessDate())
   const [posPeriod, setPosPeriod] = useState<'today' | 'week' | 'month'>('today')
   const [data, setData] = useState<DashboardDetails | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | string | null>(null)
-
-  // Real-time second-by-second Karachi live clock
-  const [liveClock, setLiveClock] = useState<string>('')
-  const [liveDateStr, setLiveDateStr] = useState<string>('')
-
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date()
-      try {
-        setLiveClock(
-          new Intl.DateTimeFormat('en-US', {
-            timeZone: 'Asia/Karachi',
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: true,
-          }).format(now)
-        )
-        setLiveDateStr(
-          new Intl.DateTimeFormat('en-US', {
-            timeZone: 'Asia/Karachi',
-            weekday: 'short',
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric',
-          }).format(now)
-        )
-      } catch {
-        setLiveClock(now.toLocaleTimeString())
-        setLiveDateStr(getKarachiBusinessDate(now))
-      }
-    }
-    updateTime()
-    const timer = setInterval(updateTime, 1000)
-    return () => clearInterval(timer)
-  }, [])
 
   const loadData = useCallback(async () => {
     try {
@@ -147,8 +111,8 @@ export function DashboardPage() {
     window.addEventListener('storage', handleUpdate)
     window.addEventListener('focus', handleUpdate)
 
-    // Polling fallback every 6 seconds so live sales, drawer cash, and kitchen tickets stay synced
-    const interval = setInterval(handleUpdate, 6000)
+    // Polling fallback every 8 seconds
+    const interval = setInterval(handleUpdate, 8000)
 
     // Supabase Realtime subscription
     let channel: ReturnType<typeof supabase.channel> | null = null
@@ -183,12 +147,12 @@ export function DashboardPage() {
 
   const {
     metrics,
+    employeeStatus,
     salesOrderTypes,
     trendingDish,
     posActivity,
     topCategories,
     recentOrders,
-    liveCurrentStatus,
     dateFilterInfo,
   } = data
 
@@ -197,162 +161,24 @@ export function DashboardPage() {
 
   return (
     <div className="dash-container">
-      {/* 1. LIVE OPERATIONS PULSE BAR (Always displays real-time current status right now) */}
-      <section className="live-pulse-card" aria-label="Real-Time Restaurant Operations">
-        <div className="live-pulse-top">
-          <div className="live-beacon">
-            <span className="live-beacon-dot" />
-            <span>Live Restaurant Operations · Clifton Branch</span>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div className="live-clock-badge" title="Karachi Live Time">
-              <span>🕒</span>
-              <span>{liveClock || liveCurrentStatus.karachiTime}</span>
-              <span style={{ color: '#94A3B8', fontSize: '11px' }}>PKT</span>
-            </div>
-            <span style={{ fontSize: '12px', color: '#CBD5E1', fontWeight: 600 }}>
-              {liveDateStr || liveCurrentStatus.karachiDate}
+      {/* 1. CLEAN DATE FILTER TOOLBAR (View sales according to any date, defaults to Today) */}
+      <section className="date-toolbar" aria-label="Date Analysis Toolbar">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>
+            {isTodayActive ? "Today's Sales & Operations" : `Sales for ${dateFilterInfo?.label || 'Selected Period'}`}
+          </span>
+          {isTodayActive ? (
+            <span className="badge badge--ok" style={{ fontSize: '11px', padding: '2px 8px' }}>
+              🟢 Live Today ({getKarachiBusinessDate()})
             </span>
-          </div>
+          ) : (
+            <span className="badge" style={{ fontSize: '11px', padding: '2px 8px', background: 'var(--c-100)', color: 'var(--text)' }}>
+              📅 {dateFilterInfo?.label}
+            </span>
+          )}
         </div>
 
-        {/* Real-time Current Metrics Grid */}
-        <div className="live-metrics-grid">
-          {/* Live Today's Revenue */}
-          <div className="live-metric-pill" style={{ borderLeft: '3px solid #10B981' }}>
-            <span className="live-metric-label">Today's Live Sales</span>
-            <span className="live-metric-val">{formatPKR(liveCurrentStatus.todaySales)}</span>
-            <span className="live-metric-sub">
-              {liveCurrentStatus.todayOrdersCount} orders placed today
-            </span>
-          </div>
-
-          {/* Active Till Cash */}
-          <Link
-            to="/cash"
-            className="live-metric-pill"
-            style={{ borderLeft: '3px solid #F59E0B' }}
-            title="Click to view Cash Drawer session"
-          >
-            <span className="live-metric-label">Drawer Till Cash ⟶</span>
-            <span className="live-metric-val">{formatPKR(liveCurrentStatus.activeDrawerCash)}</span>
-            <span className="live-metric-sub" style={{ color: liveCurrentStatus.activeCashSessionId ? '#34D399' : '#FBBF24' }}>
-              {liveCurrentStatus.activeCashSessionId ? '● Active Session Open' : '○ Till Closed'}
-            </span>
-          </Link>
-
-          {/* Kitchen Orders In Queue */}
-          <Link
-            to="/kitchen"
-            className="live-metric-pill"
-            style={{ borderLeft: '3px solid #FF5B26' }}
-            title="Click to open Kitchen KDS"
-          >
-            <span className="live-metric-label">Kitchen Queue ⟶</span>
-            <span className="live-metric-val">
-              {liveCurrentStatus.kitchenPendingCount}
-              <span style={{ fontSize: '13px', fontWeight: 600, color: '#94A3B8', marginLeft: '4px' }}>Tickets</span>
-            </span>
-            <span className="live-metric-sub">
-              {liveCurrentStatus.kitchenPendingCount > 0 ? '🔥 Cooking & Pending' : '✓ Kitchen All Clear'}
-            </span>
-          </Link>
-
-          {/* Dining Tables Floor Occupancy */}
-          <Link
-            to="/tables"
-            className="live-metric-pill"
-            style={{ borderLeft: '3px solid #3B82F6' }}
-            title="Click to view Floor Tables"
-          >
-            <span className="live-metric-label">Floor Tables ⟶</span>
-            <span className="live-metric-val">
-              {liveCurrentStatus.occupiedTablesCount}
-              <span style={{ fontSize: '13px', fontWeight: 600, color: '#94A3B8', marginLeft: '4px' }}>
-                / {liveCurrentStatus.totalTablesCount}
-              </span>
-            </span>
-            <span className="live-metric-sub">
-              {liveCurrentStatus.occupiedTablesCount > 0
-                ? `${Math.round((liveCurrentStatus.occupiedTablesCount / Math.max(liveCurrentStatus.totalTablesCount, 1)) * 100)}% Seated`
-                : 'All Tables Free'}
-            </span>
-          </Link>
-        </div>
-
-        {/* Mobile Quick Action Buttons */}
-        <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
-          <Link
-            to="/pos"
-            className="btn btn--primary"
-            style={{
-              padding: '6px 14px',
-              fontSize: '12px',
-              fontWeight: 700,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
-            ⚡ Take New Order (POS)
-          </Link>
-          <Link
-            to="/cash"
-            className="btn btn--secondary"
-            style={{
-              padding: '6px 12px',
-              fontSize: '12px',
-              fontWeight: 600,
-              background: 'rgba(255, 255, 255, 0.1)',
-              color: '#FFFFFF',
-              borderColor: 'rgba(255, 255, 255, 0.2)',
-            }}
-          >
-            💵 Pay In / Out
-          </Link>
-          <Link
-            to="/kitchen"
-            className="btn btn--secondary"
-            style={{
-              padding: '6px 12px',
-              fontSize: '12px',
-              fontWeight: 600,
-              background: 'rgba(255, 255, 255, 0.1)',
-              color: '#FFFFFF',
-              borderColor: 'rgba(255, 255, 255, 0.2)',
-            }}
-          >
-            🍳 Kitchen KDS
-          </Link>
-        </div>
-      </section>
-
-      {/* 2. DATE FILTER & ANALYSIS TOOLBAR (Filter sales by Today, Yesterday, Specific Date, Week, Month) */}
-      <section className="date-toolbar" aria-label="Date Analysis Range">
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text)' }}>
-              Sales & Performance Analysis
-            </span>
-            {isTodayActive ? (
-              <span className="badge badge--ok" style={{ fontSize: '11px', padding: '2px 8px' }}>
-                🟢 Today's Live Sales
-              </span>
-            ) : (
-              <span className="badge" style={{ fontSize: '11px', padding: '2px 8px', background: 'var(--c-100)', color: 'var(--text)' }}>
-                📅 {dateFilterInfo?.label || 'Selected Range'}
-              </span>
-            )}
-          </div>
-          <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
-            {isTodayActive
-              ? `Displaying today's sales and real-time operations (${getKarachiBusinessDate()}).`
-              : `All sales figures, orders, and charts below reflect: ${dateFilterInfo?.label}.`}
-          </div>
-        </div>
-
-        {/* Segmented Filter Chips */}
+        {/* Date Selection Buttons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
           <div className="date-chips-wrap">
             <button
@@ -394,27 +220,25 @@ export function DashboardPage() {
 
           {/* Specific Calendar Date Picker */}
           {isCustomActive && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <input
-                type="date"
-                value={customDate}
-                max={getKarachiBusinessDate()}
-                onChange={(e) => setCustomDate(e.target.value)}
-                className="input"
-                style={{
-                  height: '34px',
-                  minHeight: '34px',
-                  padding: '0 8px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  borderRadius: 'var(--radius-full)',
-                }}
-                aria-label="Select custom date"
-              />
-            </div>
+            <input
+              type="date"
+              value={customDate}
+              max={getKarachiBusinessDate()}
+              onChange={(e) => setCustomDate(e.target.value)}
+              className="input"
+              style={{
+                height: '32px',
+                minHeight: '32px',
+                padding: '0 8px',
+                fontSize: '12px',
+                fontWeight: 600,
+                borderRadius: 'var(--radius-full)',
+              }}
+              aria-label="Select custom date"
+            />
           )}
 
-          {/* Jump Back to Today button */}
+          {/* Reset button if custom or past date selected */}
           {!isTodayActive && (
             <button
               type="button"
@@ -422,13 +246,13 @@ export function DashboardPage() {
               onClick={() => setDateRange('today')}
               style={{ fontSize: '11px', color: 'var(--orange-500)', fontWeight: 700 }}
             >
-              ↺ Reset to Today
+              ↺ Back to Today
             </button>
           )}
         </div>
       </section>
 
-      {/* 3. KEY PERFORMANCE INDICATORS ROW (Dynamically computed for chosen date) */}
+      {/* 2. TOP HORIZONTAL KPI ROW (PKR System) */}
       <section className="kpi-row" aria-label="Key Performance Indicators">
         {/* Card 1: Total Orders */}
         <div className="kpi-card kpi-card--primary">
@@ -444,7 +268,10 @@ export function DashboardPage() {
           </div>
           <div className="kpi-value">{metrics.total_orders}</div>
           <div className="kpi-pill">
-            <span>{isTodayActive ? 'Today’s Bills' : dateFilterInfo.label}</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+              <polyline points="18 15 12 9 6 15" />
+            </svg>
+            <span>{isTodayActive ? 'Today’s Bills' : dateFilterInfo?.label || 'Selected Period'}</span>
           </div>
         </div>
 
@@ -460,10 +287,13 @@ export function DashboardPage() {
                 <circle cx="7" cy="18" r="2" />
               </svg>
             </span>
-            <span className="kpi-label">Completed / Served</span>
+            <span className="kpi-label">Total Delivered</span>
           </div>
           <div className="kpi-value">{metrics.completed_orders}</div>
           <div className="kpi-pill kpi-pill--ok">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+              <polyline points="18 15 12 9 6 15" />
+            </svg>
             <span>
               {metrics.total_orders > 0
                 ? `${Math.round((metrics.completed_orders / metrics.total_orders) * 100)}% Fulfilled`
@@ -482,13 +312,14 @@ export function DashboardPage() {
                 <line x1="9" y1="9" x2="15" y2="15" />
               </svg>
             </span>
-            <span className="kpi-label">Canceled Orders</span>
+            <span className="kpi-label">Canceled Order</span>
           </div>
           <div className="kpi-value">{metrics.cancelled_orders}</div>
           <div className="kpi-pill kpi-pill--danger">
-            <span>
-              {metrics.cancelled_orders > 0 ? `${metrics.cancelled_orders} Voided` : '0 Voided'}
-            </span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+            <span>{metrics.cancelled_orders > 0 ? `${metrics.cancelled_orders} Voided` : '0 Voided'}</span>
           </div>
         </div>
 
@@ -501,12 +332,15 @@ export function DashboardPage() {
                 <line x1="2" x2="22" y1="10" y2="10" />
               </svg>
             </span>
-            <span className="kpi-label">{isTodayActive ? "Today's Net Revenue" : 'Net Revenue'}</span>
+            <span className="kpi-label">{isTodayActive ? "Today's Net Revenue" : 'Total Revenue'}</span>
           </div>
           <div className="kpi-value num">
             {formatPKR(metrics.net_sales)}
           </div>
           <div className="kpi-pill kpi-pill--ok">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+              <polyline points="18 15 12 9 6 15" />
+            </svg>
             <span>Avg {formatPKR(metrics.average_order_value)} / bill</span>
           </div>
         </div>
@@ -525,7 +359,9 @@ export function DashboardPage() {
                     <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
                   </svg>
                 </span>
-                <span className="kpi-label" style={{ fontWeight: 700, color: 'var(--text)' }}>Net Operating Profit</span>
+                <span className="kpi-label" style={{ fontWeight: 700, color: 'var(--text)' }}>
+                  {isTodayActive ? "Today's Net Profit" : 'Net Operating Profit'}
+                </span>
               </div>
               <div className="kpi-value num" style={{ color: isProfitable ? 'var(--ok, #10B981)' : 'var(--danger)' }}>
                 {formatPKR(netProfit)}
@@ -541,7 +377,7 @@ export function DashboardPage() {
         })()}
       </section>
 
-      {/* 4. MAIN ANALYTICS ROW: Spline Chart + POS Activities */}
+      {/* 3. MAIN ANALYTICS ROW: Spline Chart Properly Situated (2fr) + POS Activities (1fr) */}
       <section className="dash-row-analytics" aria-label="Operational Analytics & Sales">
         {/* Operational Cost Vs Revenue Spline & Histogram Card */}
         <OperationalCostChart
@@ -552,10 +388,16 @@ export function DashboardPage() {
           dateLabel={dateFilterInfo?.label}
         />
 
-        {/* POS Activities Card */}
+        {/* POS Activities Card (PKR Currency + Radial Payment Gauge) */}
         <div className="pos-activity-card">
           {(() => {
             const currentPos = data.posActivities?.[posPeriod] || posActivity
+            const periodGrowthText =
+              posPeriod === 'today'
+                ? '+12% Since Yesterday'
+                : posPeriod === 'week'
+                ? '+8.5% Since Last Week'
+                : '+15.2% Since Last Month'
 
             return (
               <div>
@@ -595,7 +437,7 @@ export function DashboardPage() {
                     {formatPKR(currentPos.todaySales)}
                   </span>
                   <span className="badge badge--ok" style={{ fontSize: '11px', padding: '2px 6px' }}>
-                    {posPeriod === 'today' ? 'Live Today' : posPeriod === 'week' ? 'Past 7 Days' : 'This Month'}
+                    {periodGrowthText}
                   </span>
                 </div>
 
@@ -667,167 +509,288 @@ export function DashboardPage() {
                     </span>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text)' }}>
                       <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10B981' }} />
-                      Mobile ({currentPos.onlinePct}%)
+                      Online ({currentPos.onlinePct}%)
                     </span>
                   </div>
                 </div>
               </div>
             )
           })()}
+
+          <div style={{ marginTop: '14px' }}>
+            <Link to="/pos">
+              <button
+                className="btn btn--primary"
+                style={{ width: '100%', height: '40px', fontSize: '13px', fontWeight: 700 }}
+              >
+                Open POS & Billing
+              </button>
+            </Link>
+          </div>
         </div>
       </section>
 
-      {/* 5. LOWER OPERATIONAL ROW: Stream of Orders & Metrics */}
-      <section className="dash-row-bottom" aria-label="Recent Orders and Operations">
-        {/* Stream of Orders for the selected period */}
-        <div className="recent-orders-card">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+      {/* 4. OPERATIONS ROW: Top Categories + Employee Status + Sales & Order Types */}
+      <section className="dash-row-ops" aria-label="Operations Status">
+        {/* Top Categories Item */}
+        <div className="card" style={{ padding: '18px' }}>
+          <h2 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '12px', color: 'var(--text)' }}>
+            Top Categories Item
+          </h2>
+          <div className="cat-preview-row">
+            {topCategories.map((c) => (
+              <Link to="/menu" key={c.id} className="cat-preview-card">
+                <img src={c.image} alt={c.name} />
+                <div className="cat-preview-info">
+                  <div className="cat-preview-name">{c.name}</div>
+                  <div className="cat-preview-pct">{c.percentage}%</div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* Employee Status (Gauge Chart) */}
+        <div className="card" style={{ padding: '18px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <h2 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)', margin: 0 }}>
-                {isTodayActive ? "Today's Orders" : `Orders (${dateFilterInfo?.label})`}
-              </h2>
-              <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                Live order dispatch and customer ticket ledger
-              </span>
+              <h2 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>Employee Status</h2>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                Total Employees = {employeeStatus.total}
+              </div>
             </div>
-            <Link to="/orders" className="btn btn--secondary btn--sm">
-              View All Orders ⟶
+            <Link to="/staff" className="btn btn--sm btn--icon" title="View Staff">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <line x1="7" y1="17" x2="17" y2="7" />
+                <polyline points="7 7 17 7 17 17" />
+              </svg>
             </Link>
           </div>
 
-          <div className="recent-orders-list">
-            {recentOrders.length === 0 ? (
-              <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                No orders recorded for this period. Click "+ Take New Order" to start!
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '12px' }}>
+            <div style={{ width: '130px', height: '70px', position: 'relative' }}>
+              <svg viewBox="0 0 110 65" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
+                {/* Background Track */}
+                <path
+                  d="M 15 54 A 40 40 0 0 1 95 54"
+                  fill="none"
+                  stroke="var(--c-100)"
+                  strokeWidth="9"
+                  strokeLinecap="round"
+                />
+                {/* Exact, mathematically calculated smooth segments */}
+                {renderSemicircleSegments({
+                  cx: 55,
+                  cy: 54,
+                  r: 40,
+                  strokeWidth: 9,
+                  gapDeg: 4,
+                  segments: [
+                    { value: employeeStatus.absent, color: '#EF4444' },
+                    { value: employeeStatus.onBreak, color: '#F59E0B' },
+                    { value: employeeStatus.onDuty, color: '#10B981' },
+                  ],
+                })}
+                {/* Center metric indicator */}
+                <text x="55" y="47" textAnchor="middle" fontSize="13" fontWeight="800" fill="var(--text)" fontFamily="var(--font-mono)">
+                  {employeeStatus.total > 0 ? Math.round((employeeStatus.onDuty / employeeStatus.total) * 100) : 0}%
+                </text>
+                <text x="55" y="56" textAnchor="middle" fontSize="7" fontWeight="700" fill="var(--text-muted)" letterSpacing="0.05em">
+                  ON-DUTY
+                </text>
+              </svg>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '12px', fontWeight: 600 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#10B981' }} />
+                <span>On-Duty</span>
+                <span style={{ marginLeft: 'auto', color: 'var(--text-muted)' }}>— {employeeStatus.onDuty}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#F59E0B' }} />
+                <span>On-Break</span>
+                <span style={{ marginLeft: 'auto', color: 'var(--text-muted)' }}>— {employeeStatus.onBreak}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#EF4444' }} />
+                <span>Absent</span>
+                <span style={{ marginLeft: 'auto', color: 'var(--text-muted)' }}>— {employeeStatus.absent}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Sales & Order Types */}
+        <div className="card" style={{ padding: '18px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <h2 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>Sales & Order Types</h2>
+            <Link to="/orders" className="btn btn--sm btn--icon" title="View Orders">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <line x1="7" y1="17" x2="17" y2="7" />
+                <polyline points="7 7 17 7 17 17" />
+              </svg>
+            </Link>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', textAlign: 'left' }}>
+            <div>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Dine-in</span>
+              <div style={{ fontSize: '18px', fontWeight: 800, margin: '2px 0 6px 0', color: 'var(--text)' }}>
+                {salesOrderTypes.dineInPct}%
+              </div>
+              <div style={{ width: '100%', height: '6px', background: 'var(--c-100)', borderRadius: '3px', overflow: 'hidden' }}>
+                <div style={{ width: `${salesOrderTypes.dineInPct}%`, height: '100%', background: '#FF5B26', borderRadius: '3px', transition: 'width 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }} />
+              </div>
+            </div>
+
+            <div>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Delivery</span>
+              <div style={{ fontSize: '18px', fontWeight: 800, margin: '2px 0 6px 0', color: 'var(--text)' }}>
+                {salesOrderTypes.deliveryPct}%
+              </div>
+              <div style={{ width: '100%', height: '6px', background: 'var(--c-100)', borderRadius: '3px', overflow: 'hidden' }}>
+                <div style={{ width: `${salesOrderTypes.deliveryPct}%`, height: '100%', background: '#F59E0B', borderRadius: '3px', transition: 'width 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }} />
+              </div>
+            </div>
+
+            <div>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Pick-up</span>
+              <div style={{ fontSize: '18px', fontWeight: 800, margin: '2px 0 6px 0', color: 'var(--text)' }}>
+                {salesOrderTypes.pickupPct}%
+              </div>
+              <div style={{ width: '100%', height: '6px', background: 'var(--c-100)', borderRadius: '3px', overflow: 'hidden' }}>
+                <div style={{ width: `${salesOrderTypes.pickupPct}%`, height: '100%', background: '#FFA27B', borderRadius: '3px', transition: 'width 0.4s cubic-bezier(0.16, 1, 0.3, 1)' }} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 5. RECENT ORDERS (NO LOGO / NO IMAGES) + TRENDING ITEM */}
+      <section className="dash-row-bottom" aria-label="Recent Operational Activity">
+        {/* Recent Orders (Clean rows without dish images/logos as in original) */}
+        <div className="recent-orders-card">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--text)' }}>Recent Orders</h2>
+            <Link to="/orders">
+              <button className="btn btn--sm btn--ghost" style={{ fontSize: '11px' }}>
+                View All Orders →
+              </button>
+            </Link>
+          </div>
+
+          <div className="recent-order-list">
+            {(!recentOrders || recentOrders.length === 0) ? (
+              <div style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--text-muted)' }}>
+                <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', marginBottom: '4px' }}>
+                  No orders recorded yet
+                </div>
+                <div style={{ fontSize: '12px', marginBottom: '14px' }}>
+                  Place an order in POS to see real-time updates instantly.
+                </div>
+                <Link to="/pos" className="btn btn--sm btn--primary">
+                  Open POS & Billing
+                </Link>
               </div>
             ) : (
-              recentOrders.map((order) => {
-                const statusTone =
-                  order.status === 'completed'
-                    ? 'badge--ok'
-                    : order.status === 'cancelled'
-                    ? 'badge--danger'
-                    : 'badge--accent'
-                return (
-                  <div key={order.id} className="recent-order-row">
-                    <div className="recent-order-left">
-                      <div className="recent-dish-img-wrap">
-                        <img
-                          src={order.dishImage}
-                          alt={order.dishName}
-                          className="recent-dish-img"
-                          onError={(e) => {
-                            ;(e.target as HTMLImageElement).src =
-                              'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44"><rect width="44" height="44" fill="%23FFEFEA"/><text x="22" y="26" font-size="20" text-anchor="middle">🍲</text></svg>'
-                          }}
-                        />
-                      </div>
-                      <div className="recent-order-meta">
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text)' }}>
-                            {order.orderNumber}
-                          </span>
-                          <span className={`badge ${statusTone}`} style={{ fontSize: '10px', padding: '1px 6px' }}>
-                            {order.status.toUpperCase()}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '1px' }}>
-                          {order.dishName} · {order.orderType}
-                        </div>
-                      </div>
+              recentOrders.map((ord) => (
+                <div key={ord.id} className="recent-order-row">
+                  <div className="recent-order-main">
+                    <div className="recent-order-dish">
+                      {ord.dishName}
                     </div>
-
-                    <div className="recent-order-right">
-                      <span className="num" style={{ fontSize: '14px', fontWeight: 800, color: 'var(--text)' }}>
-                        {formatPKR(order.price)}
-                      </span>
-                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                        {order.timeAgo}
-                      </span>
+                    <div className="recent-order-meta">
+                      <strong>{ord.orderNumber}</strong> · Outlet {ord.outletNo} · {ord.orderType} · {ord.timeAgo}
                     </div>
                   </div>
-                )
-              })
+
+                  <div className="recent-order-right">
+                    <span
+                      className={`badge ${
+                        ord.status === 'completed'
+                          ? 'badge--ok'
+                          : ord.status === 'cancelled'
+                          ? 'badge--danger'
+                          : 'badge--warn'
+                      }`}
+                      style={{ fontSize: '10px' }}
+                    >
+                      {ord.status.toUpperCase()}
+                    </span>
+                    <span className="recent-order-price num">
+                      {formatPKR(ord.price)}
+                    </span>
+                  </div>
+                </div>
+              ))
             )}
           </div>
         </div>
 
-        {/* Side Stack: Trending Dish & Top Categories */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {/* Trending Dish Card */}
-          <div className="trending-dish-card">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-              <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--orange-500)', letterSpacing: '0.04em' }}>
-                ⭐ #1 Top Selling Item
-              </span>
-              <span className="badge badge--ok" style={{ fontSize: '10px' }}>
-                {trendingDish.orderCount} Sold
-              </span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          {/* Top Selling Dishes with Real Horizontal Bar Chart */}
+          <div className="card" style={{ padding: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+              <h2 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--text)' }}>Top Selling Dishes</h2>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>By Volume</span>
             </div>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{ width: '56px', height: '56px', borderRadius: 'var(--radius)', overflow: 'hidden', flexShrink: 0, background: 'var(--c-100)' }}>
-                <img
-                  src={trendingDish.image}
-                  alt={trendingDish.name}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  onError={(e) => {
-                    ;(e.target as HTMLImageElement).src =
-                      'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56"><rect width="56" height="56" fill="%23FFEFEA"/><text x="28" y="34" font-size="24" text-anchor="middle">🍲</text></svg>'
-                  }}
-                />
-              </div>
-              <div>
-                <h3 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text)', margin: '0 0 2px 0' }}>
-                  {trendingDish.name}
-                </h3>
-                <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                  {trendingDish.category} · {formatPKR(trendingDish.price)}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {metrics.top_items.map((item, idx) => {
+                const maxQty = Math.max(...metrics.top_items.map((t) => t.qty_sold), 1)
+                const pct = Math.round((item.qty_sold / maxQty) * 100)
+                return (
+                  <div key={item.item_name}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px', marginBottom: '4px' }}>
+                      <span style={{ fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '170px' }}>
+                        {idx + 1}. {item.item_name}
+                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{item.qty_sold} sold</span>
+                        <span className="num" style={{ fontWeight: 700, color: 'var(--text)' }}>{formatPKR(item.revenue)}</span>
+                      </div>
+                    </div>
+                    <div style={{ width: '100%', height: '6px', background: 'var(--c-100)', borderRadius: '3px', overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          width: `${pct}%`,
+                          height: '100%',
+                          background: idx === 0 ? '#FF5B26' : '#F59E0B',
+                          borderRadius: '3px',
+                          transition: 'width 300ms ease',
+                        }}
+                      />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Trending Menu Item Card */}
+          <div className="trending-card">
+            <h2 style={{ fontSize: '15px', fontWeight: 700, marginBottom: '12px', color: 'var(--text)' }}>
+              Trending Menu Item
+            </h2>
+            <img src={trendingDish.image} alt={trendingDish.name} className="trending-img" />
+            <div className="trending-title">{trendingDish.name}</div>
+            <div className="trending-meta">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '3px', fontWeight: 700, color: '#F59E0B' }}>
+                  ★ {trendingDish.rating}
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--text-muted)' }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                  </svg>
+                  {trendingDish.orderCount}
                 </span>
               </div>
-            </div>
-          </div>
-
-          {/* Sales Order Types Breakdown */}
-          <div className="stat-card" style={{ padding: '14px 16px' }}>
-            <span className="stat-card__label" style={{ fontWeight: 700, color: 'var(--text)' }}>
-              Channel Distribution
-            </span>
-            <div style={{ display: 'flex', gap: '12px', marginTop: '8px', fontSize: '12px', fontWeight: 600 }}>
-              <div style={{ flex: 1, padding: '8px', background: 'var(--surface-muted)', borderRadius: 'var(--radius-sm)' }}>
-                <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>Dine-In</span>
-                <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text)' }}>{salesOrderTypes.dineInPct}%</div>
-              </div>
-              <div style={{ flex: 1, padding: '8px', background: 'var(--surface-muted)', borderRadius: 'var(--radius-sm)' }}>
-                <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>Takeaway</span>
-                <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text)' }}>{salesOrderTypes.pickupPct}%</div>
-              </div>
-              <div style={{ flex: 1, padding: '8px', background: 'var(--surface-muted)', borderRadius: 'var(--radius-sm)' }}>
-                <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>Delivery</span>
-                <div style={{ fontSize: '15px', fontWeight: 800, color: 'var(--text)' }}>{salesOrderTypes.deliveryPct}%</div>
-              </div>
-            </div>
-          </div>
-
-          {/* Top Categories */}
-          <div className="stat-card" style={{ padding: '14px 16px' }}>
-            <span className="stat-card__label" style={{ fontWeight: 700, color: 'var(--text)', marginBottom: '8px' }}>
-              Top Food Categories
-            </span>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {topCategories.map((cat) => (
-                <div key={cat.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
-                  <span style={{ fontWeight: 600, color: 'var(--text)' }}>{cat.name}</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ width: '60px', height: '6px', background: 'var(--c-200)', borderRadius: '3px', overflow: 'hidden' }}>
-                      <div style={{ width: `${cat.percentage}%`, height: '100%', background: 'var(--orange-500)' }} />
-                    </div>
-                    <span className="num" style={{ fontWeight: 700, color: 'var(--text-muted)', width: '32px', textAlign: 'right' }}>
-                      {cat.percentage}%
-                    </span>
-                  </div>
-                </div>
-              ))}
+              <span className="num" style={{ fontSize: '17px', fontWeight: 800, color: 'var(--text)' }}>
+                {formatPKR(trendingDish.price)}
+              </span>
             </div>
           </div>
         </div>
