@@ -164,6 +164,16 @@ export async function settlePayment(params: SettlePaymentParams): Promise<{
   const orders = Storage.getOrders(params.branchId)
   const order = orders.find((o) => o.id === params.orderId)
   if (order) {
+    let activeSessionId = params.cashSessionId || null
+    if (!activeSessionId) {
+      try {
+        const rawSess = localStorage.getItem(`karachi_pos_active_session_${params.branchId}`)
+        if (rawSess) activeSessionId = JSON.parse(rawSess).id
+      } catch {
+        // ignore
+      }
+    }
+
     const payment = {
       id: paymentId,
       branch_id: params.branchId,
@@ -172,6 +182,7 @@ export async function settlePayment(params: SettlePaymentParams): Promise<{
       status: 'succeeded' as const,
       amount: params.amount,
       idempotency_key: params.idempotencyKey,
+      cash_session_id: activeSessionId,
       created_at: new Date().toISOString(),
     }
     const updatedOrder: Order = {
@@ -184,6 +195,8 @@ export async function settlePayment(params: SettlePaymentParams): Promise<{
       updated_at: new Date().toISOString(),
     }
     Storage.saveOrder(updatedOrder)
+    window.dispatchEvent(new CustomEvent('karachi_storage_update', { detail: { key: 'cash_session' } }))
+    window.dispatchEvent(new CustomEvent('karachi-pos-update', { detail: { key: 'cash_session' } }))
   }
 
   return {

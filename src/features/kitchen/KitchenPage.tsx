@@ -80,12 +80,9 @@ export function KitchenPage() {
         title="Kitchen Display System (KDS)"
         subtitle="Live ticket dispatch for kitchen chefs and station cooks"
         actions={
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <Badge tone="ok">🟢 Realtime Live Connected</Badge>
-            <Button size="sm" onClick={loadTickets}>
-              🔄 Refresh
-            </Button>
-          </div>
+          <Button size="sm" onClick={loadTickets}>
+            🔄 Refresh
+          </Button>
         }
       />
 

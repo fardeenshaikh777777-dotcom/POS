@@ -70,6 +70,22 @@ export function CashPage() {
 
   useEffect(() => {
     loadData()
+
+    const handleUpdate = () => {
+      loadData()
+    }
+
+    window.addEventListener('karachi_storage_update', handleUpdate)
+    window.addEventListener('karachi-pos-update', handleUpdate)
+    window.addEventListener('storage', handleUpdate)
+    window.addEventListener('focus', handleUpdate)
+
+    return () => {
+      window.removeEventListener('karachi_storage_update', handleUpdate)
+      window.removeEventListener('karachi-pos-update', handleUpdate)
+      window.removeEventListener('storage', handleUpdate)
+      window.removeEventListener('focus', handleUpdate)
+    }
   }, [loadData])
 
   const handleOpenSession = async () => {
@@ -101,7 +117,7 @@ export function CashPage() {
   const handleRecordMovement = async () => {
     if (!activeSession || moveAmount <= 0 || !moveReason.trim()) return
     try {
-      await recordCashMovementRpc(activeSession.id, moveKind, moveAmount, moveReason.trim())
+      await recordCashMovementRpc(activeSession.id, moveKind, moveAmount, moveReason.trim(), activeSession.branch_id)
       setMoveModalOpen(false)
       setMoveReason('')
       await loadData()
