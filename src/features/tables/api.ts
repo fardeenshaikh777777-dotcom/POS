@@ -1,6 +1,7 @@
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { Storage } from '@/lib/storage'
-import type { DiningTable, TableReservation } from '@/types/domain'
+import { normalizePhoneNumber } from '@/lib/phoneNormalizer'
+import type { DiningTable, TableReservation, MarketingConsent } from '@/types/domain'
 
 export async function fetchTablesWithOccupancy(branchId: string): Promise<DiningTable[]> {
   if (isSupabaseConfigured) {
@@ -103,6 +104,8 @@ export async function saveReservationRecord(branchId: string, data: {
   reservationTime: string
   notes?: string
   status?: TableReservation['status']
+  customerId?: string
+  marketingConsent?: MarketingConsent
 }): Promise<TableReservation> {
   if (!data.customerName.trim()) throw new Error('Guest name is required')
   if (!data.customerPhone.trim()) throw new Error('Guest phone number is required')
@@ -126,6 +129,8 @@ export async function saveReservationRecord(branchId: string, data: {
       `Table conflict: An active reservation for "${conflict.customer_name}" is already scheduled within 2 hours at ${new Date(conflict.reservation_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`
     )
   }
+
+  const normalizedPhone = normalizePhoneNumber(data.customerPhone.trim())
 
   if (isSupabaseConfigured) {
     if (data.id) {
@@ -151,6 +156,41 @@ export async function saveReservationRecord(branchId: string, data: {
       }
       return updated as TableReservation
     } else {
+      // Use transactional RPC that checks conflict, normalizes phone, and links/creates customer atomically
+      try {
+        const { data: rpcRes, error: rpcErr } = await supabase.rpc('save_reservation_with_customer', {
+          p_branch_id: branchId,
+          p_table_id: data.tableId,
+          p_customer_name: data.customerName.trim(),
+          p_customer_phone: normalizedPhone,
+          p_guest_count: data.guestCount,
+          p_reservation_time: resDate.toISOString(),
+          p_notes: data.notes?.trim() || null,
+          p_marketing_consent: data.marketingConsent || 'unspecified',
+        })
+        if (!rpcErr && rpcRes) {
+          const { data: inserted } = await supabase
+            .from('table_reservations')
+            .select('*, table:dining_tables(*)')
+            .eq('id', rpcRes.reservation_id)
+            .single()
+          if (inserted) {
+            try {
+              Storage.saveReservation(branchId, {
+                ...data,
+                id: inserted.id,
+                customerId: rpcRes.customer_id,
+              })
+            } catch {
+              // sync
+            }
+            return inserted as TableReservation
+          }
+        }
+      } catch {
+        // fallback to standard insert if RPC not applied yet
+      }
+
       const { data: inserted, error } = await supabase
         .from('table_reservations')
         .insert({

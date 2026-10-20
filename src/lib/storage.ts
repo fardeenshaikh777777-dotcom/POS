@@ -14,8 +14,11 @@ import type {
   PaymentMethod,
   AppRole,
   RecipeItem,
+  Deal,
+  MarketingConsent,
 } from '@/types/domain'
 import { getKarachiBusinessDate } from '@/lib/format'
+import { normalizePhoneNumber } from '@/lib/phoneNormalizer'
 
 const DEFAULT_BRANCH_ID = '635c7b14-54be-4b93-a75a-e2ddc0323827'
 
@@ -167,6 +170,10 @@ export const INITIAL_CUSTOMERS: Customer[] = [
     total_orders: 8,
     total_spent: 12450,
     created_at: new Date(Date.now() - 30 * 86400000).toISOString(),
+    last_visit_at: new Date(Date.now() - 2 * 86400000).toISOString(),
+    marketing_consent: 'opted_in',
+    marketing_consent_at: new Date(Date.now() - 30 * 86400000).toISOString(),
+    marketing_consent_source: 'pos',
   },
   {
     id: 'cust-2',
@@ -179,6 +186,10 @@ export const INITIAL_CUSTOMERS: Customer[] = [
     total_orders: 5,
     total_spent: 8900,
     created_at: new Date(Date.now() - 14 * 86400000).toISOString(),
+    last_visit_at: new Date(Date.now() - 4 * 86400000).toISOString(),
+    marketing_consent: 'opted_in',
+    marketing_consent_at: new Date(Date.now() - 14 * 86400000).toISOString(),
+    marketing_consent_source: 'reservation',
   },
   {
     id: 'cust-3',
@@ -191,6 +202,134 @@ export const INITIAL_CUSTOMERS: Customer[] = [
     total_orders: 14,
     total_spent: 34200,
     created_at: new Date(Date.now() - 60 * 86400000).toISOString(),
+    last_visit_at: new Date(Date.now() - 7 * 86400000).toISOString(),
+    marketing_consent: 'opted_out',
+    marketing_consent_at: new Date(Date.now() - 10 * 86400000).toISOString(),
+    marketing_consent_source: 'staff_update',
+  },
+]
+
+export const INITIAL_DEALS: Deal[] = [
+  {
+    id: 'deal-1',
+    branch_id: DEFAULT_BRANCH_ID,
+    name: 'Karachi Biryani Duo Deal',
+    description: '1 Chicken Biryani (Double Masala) + 1 Fresh Mint Lemonade combo at Rs. 550 (Save Rs. 110)',
+    deal_type: 'combo',
+    discount_type: 'combo_price',
+    discount_value: 110,
+    combo_price: 550,
+    min_order_amount: 0,
+    max_discount_amount: null,
+    applicable_order_types: ['dine_in', 'takeaway', 'delivery'],
+    applicable_weekdays: [0, 1, 2, 3, 4, 5, 6],
+    start_time: '2026-01-01T00:00:00.000Z',
+    end_time: null,
+    is_active: true,
+    is_stackable: false,
+    redemption_limit: 500,
+    per_customer_limit: 3,
+    times_redeemed: 42,
+    internal_notes: 'Popular lunch & dinner combo',
+    created_at: new Date(Date.now() - 15 * 86400000).toISOString(),
+    updated_at: new Date(Date.now() - 15 * 86400000).toISOString(),
+    items: [
+      {
+        id: 'di-1',
+        deal_id: 'deal-1',
+        menu_item_id: 'item-2',
+        required_quantity: 1,
+        is_free: false,
+      },
+      {
+        id: 'di-2',
+        deal_id: 'deal-1',
+        menu_item_id: 'item-8',
+        required_quantity: 1,
+        is_free: false,
+      },
+    ],
+  },
+  {
+    id: 'deal-2',
+    branch_id: DEFAULT_BRANCH_ID,
+    name: 'BOGO Seekh Kabab Feast',
+    description: 'Buy one Beef Seekh Kabab (4 Pcs), get the second platter completely FREE!',
+    deal_type: 'bogo',
+    discount_type: 'free_item',
+    discount_value: 450,
+    combo_price: null,
+    min_order_amount: 0,
+    max_discount_amount: null,
+    applicable_order_types: ['dine_in', 'takeaway'],
+    applicable_weekdays: [0, 1, 2, 3, 4, 5, 6],
+    start_time: '2026-01-01T00:00:00.000Z',
+    end_time: null,
+    is_active: true,
+    is_stackable: false,
+    redemption_limit: 200,
+    per_customer_limit: 2,
+    times_redeemed: 18,
+    internal_notes: 'Promotes dine-in evening BBQ sales',
+    created_at: new Date(Date.now() - 10 * 86400000).toISOString(),
+    updated_at: new Date(Date.now() - 10 * 86400000).toISOString(),
+    items: [
+      {
+        id: 'di-3',
+        deal_id: 'deal-2',
+        menu_item_id: 'item-4',
+        required_quantity: 2,
+        is_free: true,
+      },
+    ],
+  },
+  {
+    id: 'deal-3',
+    branch_id: DEFAULT_BRANCH_ID,
+    name: 'Flat Rs. 200 Off on Orders Above Rs. 1,500',
+    description: 'Get an instant Rs. 200 off your entire bill on orders of Rs. 1,500 or more',
+    deal_type: 'flat_discount',
+    discount_type: 'fixed',
+    discount_value: 200,
+    combo_price: null,
+    min_order_amount: 1500,
+    max_discount_amount: null,
+    applicable_order_types: ['dine_in', 'takeaway', 'delivery'],
+    applicable_weekdays: [0, 1, 2, 3, 4, 5, 6],
+    start_time: '2026-01-01T00:00:00.000Z',
+    end_time: null,
+    is_active: true,
+    is_stackable: false,
+    redemption_limit: 1000,
+    per_customer_limit: 5,
+    times_redeemed: 87,
+    internal_notes: 'Drive higher ticket size',
+    created_at: new Date(Date.now() - 20 * 86400000).toISOString(),
+    updated_at: new Date(Date.now() - 20 * 86400000).toISOString(),
+  },
+  {
+    id: 'deal-4',
+    branch_id: DEFAULT_BRANCH_ID,
+    name: 'Family Feast 10% Off',
+    description: '10% off your total bill for family dining and large gatherings over Rs. 2,500',
+    deal_type: 'percentage_discount',
+    discount_type: 'percentage',
+    discount_value: 10,
+    combo_price: null,
+    min_order_amount: 2500,
+    max_discount_amount: 600,
+    applicable_order_types: ['dine_in', 'takeaway'],
+    applicable_weekdays: [0, 1, 2, 3, 4, 5, 6],
+    start_time: '2026-01-01T00:00:00.000Z',
+    end_time: null,
+    is_active: true,
+    is_stackable: false,
+    redemption_limit: 300,
+    per_customer_limit: 2,
+    times_redeemed: 34,
+    internal_notes: 'Capped at Rs. 600 discount',
+    created_at: new Date(Date.now() - 12 * 86400000).toISOString(),
+    updated_at: new Date(Date.now() - 12 * 86400000).toISOString(),
   },
 ]
 
@@ -1034,13 +1173,40 @@ export const Storage = {
   },
 
   // Customers
-  getCustomers(branchId: string, search?: string): Customer[] {
+  getCustomers(
+    branchId: string,
+    searchOrFilter?: string | { search?: string; marketing_consent?: MarketingConsent | 'all' },
+    consentFilter?: MarketingConsent | 'all'
+  ): Customer[] {
     let list = getStored<Customer[]>('kpos_customers', INITIAL_CUSTOMERS)
     list = list.filter((c) => c.branch_id === branchId || !c.branch_id)
-    if (search?.trim()) {
-      const q = search.trim().toLowerCase()
-      list = list.filter((c) => c.name.toLowerCase().includes(q) || c.phone.includes(q))
+
+    let actualSearch: string | undefined
+    let actualConsent: MarketingConsent | 'all' | undefined = consentFilter
+
+    if (typeof searchOrFilter === 'object' && searchOrFilter !== null) {
+      actualSearch = searchOrFilter.search
+      if (searchOrFilter.marketing_consent) {
+        actualConsent = searchOrFilter.marketing_consent
+      }
+    } else if (typeof searchOrFilter === 'string') {
+      actualSearch = searchOrFilter
     }
+
+    if (actualConsent && actualConsent !== 'all') {
+      list = list.filter((c) => (c.marketing_consent || 'unspecified') === actualConsent)
+    }
+
+    if (actualSearch?.trim()) {
+      const q = actualSearch.trim().toLowerCase()
+      const qPhone = normalizePhoneNumber(q).replace('+', '')
+      list = list.filter((c) => {
+        const nameMatch = c.name.toLowerCase().includes(q)
+        const phoneMatch = c.phone.includes(q) || (c.phone && normalizePhoneNumber(c.phone).includes(qPhone))
+        return nameMatch || phoneMatch
+      })
+    }
+
     return list
   },
 
@@ -1050,22 +1216,35 @@ export const Storage = {
 
     const all = getStored<Customer[]>('kpos_customers', INITIAL_CUSTOMERS)
     const phoneClean = customer.phone.trim()
+    const normalizedPhone = normalizePhoneNumber(phoneClean)
 
-    const existingIndex = all.findIndex((c) => c.branch_id === branchId && c.phone.replace(/[\s-]/g, '') === phoneClean.replace(/[\s-]/g, ''))
-    
+    const existingIndex = all.findIndex((c) => {
+      if (c.branch_id !== branchId && c.branch_id) return false
+      return normalizePhoneNumber(c.phone) === normalizedPhone || c.phone.replace(/[\s-]/g, '') === phoneClean.replace(/[\s-]/g, '')
+    })
+
     let saved: Customer
     if (existingIndex >= 0) {
       saved = {
         ...all[existingIndex],
         name: customer.name.trim(),
-        email: customer.email?.trim() || all[existingIndex].email,
-        address: customer.address?.trim() || all[existingIndex].address,
-        notes: customer.notes?.trim() || all[existingIndex].notes,
+        phone: phoneClean,
+        email: customer.email !== undefined ? (customer.email?.trim() || null) : all[existingIndex].email,
+        address: customer.address !== undefined ? (customer.address?.trim() || null) : all[existingIndex].address,
+        notes: customer.notes !== undefined ? (customer.notes?.trim() || null) : all[existingIndex].notes,
+        marketing_consent: customer.marketing_consent !== undefined ? customer.marketing_consent : (all[existingIndex].marketing_consent || 'unspecified'),
+        marketing_consent_at: customer.marketing_consent !== undefined ? new Date().toISOString() : all[existingIndex].marketing_consent_at,
+        marketing_consent_source: customer.marketing_consent_source || all[existingIndex].marketing_consent_source || 'staff_update',
+        last_visit_at: customer.last_visit_at || all[existingIndex].last_visit_at,
+        last_order_at: customer.last_order_at || all[existingIndex].last_order_at,
+        last_reservation_at: customer.last_reservation_at || all[existingIndex].last_reservation_at,
+        total_orders: customer.total_orders !== undefined ? customer.total_orders : all[existingIndex].total_orders,
+        total_spent: customer.total_spent !== undefined ? customer.total_spent : all[existingIndex].total_spent,
       }
       all[existingIndex] = saved
     } else {
       saved = {
-        id: customer.id || 'cust-' + Date.now(),
+        id: customer.id || 'cust-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
         branch_id: branchId,
         name: customer.name.trim(),
         phone: phoneClean,
@@ -1074,6 +1253,12 @@ export const Storage = {
         notes: customer.notes?.trim() || null,
         total_orders: customer.total_orders || 0,
         total_spent: customer.total_spent || 0,
+        marketing_consent: customer.marketing_consent || 'unspecified',
+        marketing_consent_at: customer.marketing_consent ? new Date().toISOString() : null,
+        marketing_consent_source: customer.marketing_consent_source || 'direct',
+        last_visit_at: customer.last_visit_at || null,
+        last_order_at: customer.last_order_at || null,
+        last_reservation_at: customer.last_reservation_at || null,
         created_at: new Date().toISOString(),
       }
       all.unshift(saved)
@@ -1081,6 +1266,39 @@ export const Storage = {
 
     setStored('kpos_customers', all)
     return saved
+  },
+
+  updateCustomerConsent(
+    arg1: string,
+    arg2: string | MarketingConsent,
+    arg3?: string | MarketingConsent,
+    arg4?: string
+  ): void {
+    let customerId: string
+    let consent: MarketingConsent
+    let source = 'staff_update'
+
+    if (arg3 === 'opted_in' || arg3 === 'opted_out' || arg3 === 'unspecified') {
+      customerId = arg2 as string
+      consent = arg3
+      if (arg4) source = arg4
+    } else {
+      customerId = arg1
+      consent = arg2 as MarketingConsent
+      if (typeof arg3 === 'string') source = arg3
+    }
+
+    const all = getStored<Customer[]>('kpos_customers', INITIAL_CUSTOMERS)
+    const idx = all.findIndex((c) => c.id === customerId)
+    if (idx !== -1) {
+      all[idx] = {
+        ...all[idx],
+        marketing_consent: consent,
+        marketing_consent_at: new Date().toISOString(),
+        marketing_consent_source: source,
+      }
+      setStored('kpos_customers', all)
+    }
   },
 
   // Expenses
@@ -1180,39 +1398,69 @@ export const Storage = {
   getReservations(branchId: string): TableReservation[] {
     const list = getStored<TableReservation[]>('kpos_reservations', INITIAL_RESERVATIONS)
     const tables = Storage.getTables(branchId)
+    const customers = Storage.getCustomers(branchId)
     return list
       .filter((r) => r.branch_id === branchId || !r.branch_id)
       .map((r) => ({
         ...r,
         table: tables.find((t) => t.id === r.table_id) || r.table,
+        customer: customers.find((c) => c.id === r.customer_id) || r.customer,
       }))
   },
 
   saveReservation(branchId: string, res: {
     id?: string
-    tableId: string
-    customerName: string
-    customerPhone: string
-    guestCount: number
-    reservationTime: string
+    tableId?: string
+    table_id?: string
+    customerName?: string
+    customer_name?: string
+    customerPhone?: string
+    customer_phone?: string
+    guestCount?: number
+    guest_count?: number
+    party_size?: number
+    reservationTime?: string
+    reservation_time?: string
+    reservation_date?: string
     notes?: string
     status?: TableReservation['status']
+    customerId?: string
+    customer_id?: string
+    marketingConsent?: MarketingConsent
+    marketing_consent?: MarketingConsent
   }): TableReservation {
-    if (!res.customerName.trim()) throw new Error('Customer name is required')
-    if (!res.customerPhone.trim()) throw new Error('Customer phone is required')
-    if (res.guestCount <= 0) throw new Error('Guest count must be at least 1')
+    const rawName = (res.customerName || res.customer_name || '').trim()
+    const rawPhone = (res.customerPhone || res.customer_phone || '').trim()
+    const customerName = rawName || 'Guest'
+    const guestCount = res.guestCount ?? res.guest_count ?? res.party_size ?? 2
+    if (guestCount <= 0) throw new Error('Guest count must be at least 1')
 
-    const resDate = new Date(res.reservationTime)
+    let timeStr: string
+    if (res.reservationTime) {
+      timeStr = res.reservationTime
+    } else if (res.reservation_date && res.reservation_time && !res.reservation_time.includes('T')) {
+      const timePart = res.reservation_time.length === 5 ? `${res.reservation_time}:00` : res.reservation_time
+      timeStr = `${res.reservation_date}T${timePart}Z`
+    } else if (res.reservation_time) {
+      timeStr = res.reservation_time
+    } else if (res.reservation_date) {
+      timeStr = `${res.reservation_date}T19:30:00Z`
+    } else {
+      timeStr = new Date().toISOString()
+    }
+
+    const resDate = new Date(timeStr)
     if (isNaN(resDate.getTime())) throw new Error('Invalid reservation date and time')
 
     const list = getStored<TableReservation[]>('kpos_reservations', INITIAL_RESERVATIONS)
     const tables = Storage.getTables(branchId)
-    const table = tables.find((t) => t.id === res.tableId)
+    const targetTableId = res.tableId || res.table_id || (tables[0]?.id || 'tbl-1')
+    const table = tables.find((t) => t.id === targetTableId)
 
     // Check for conflict (within 2 hours for same table, unless cancelled)
     const conflict = list.find((existing) => {
       if (existing.id === res.id) return false
-      if (existing.table_id !== res.tableId) return false
+      if (existing.table_id !== targetTableId) return false
       if (existing.status === 'cancelled' || existing.status === 'completed') return false
       const diffMinutes = Math.abs((new Date(existing.reservation_time).getTime() - resDate.getTime()) / 60000)
       return diffMinutes < 120 // Within 2 hours
@@ -1222,30 +1470,66 @@ export const Storage = {
       throw new Error(`Table reservation conflict: Table ${table?.label || 'selected'} already has a booking (${conflict.customer_name}) at ${new Date(conflict.reservation_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Please choose another table or time slot.`)
     }
 
+    // Auto-match or create customer profile if phone is supplied
+    let linkedCustomerId: string | null = res.customerId || res.customer_id || null
+    const consent = res.marketingConsent || res.marketing_consent
+
+    if (rawPhone) {
+      const normalizedPhone = normalizePhoneNumber(rawPhone)
+      const allCustomers = Storage.getCustomers(branchId)
+      const matchedCustomer = allCustomers.find((c) => normalizePhoneNumber(c.phone) === normalizedPhone)
+
+      if (matchedCustomer) {
+        linkedCustomerId = matchedCustomer.id
+        Storage.saveCustomer(branchId, {
+          id: matchedCustomer.id,
+          name: matchedCustomer.name || customerName,
+          phone: matchedCustomer.phone,
+          last_visit_at: resDate.toISOString(),
+          last_reservation_at: resDate.toISOString(),
+          marketing_consent: consent || matchedCustomer.marketing_consent,
+          marketing_consent_source: consent ? 'reservation' : matchedCustomer.marketing_consent_source,
+        })
+      } else {
+        const newCustomer = Storage.saveCustomer(branchId, {
+          name: customerName,
+          phone: rawPhone,
+          marketing_consent: consent || 'unspecified',
+          marketing_consent_source: 'reservation',
+          last_visit_at: resDate.toISOString(),
+          last_reservation_at: resDate.toISOString(),
+          notes: res.notes ? `Reservation request: ${res.notes.trim()}` : null,
+        })
+        linkedCustomerId = newCustomer.id
+      }
+    }
+
     let saved: TableReservation
     if (res.id) {
       const idx = list.findIndex((r) => r.id === res.id)
       if (idx === -1) throw new Error('Reservation not found')
       saved = {
         ...list[idx],
-        table_id: res.tableId,
-        customer_name: res.customerName.trim(),
-        customer_phone: res.customerPhone.trim(),
-        guest_count: res.guestCount,
+        table_id: targetTableId,
+        customer_id: linkedCustomerId || list[idx].customer_id,
+        customer_name: customerName,
+        customer_phone: rawPhone,
+        guest_count: guestCount,
         reservation_time: resDate.toISOString(),
-        notes: res.notes?.trim() || null,
+        notes: res.notes !== undefined ? (res.notes?.trim() || null) : list[idx].notes,
         status: res.status || list[idx].status,
         table,
       }
       list[idx] = saved
     } else {
       saved = {
-        id: 'res-' + Date.now(),
+        id: 'res-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
         branch_id: branchId,
-        table_id: res.tableId,
-        customer_name: res.customerName.trim(),
-        customer_phone: res.customerPhone.trim(),
-        guest_count: res.guestCount,
+        table_id: targetTableId,
+        customer_id: linkedCustomerId,
+        customer_name: customerName,
+        customer_phone: rawPhone,
+        guest_count: guestCount,
         reservation_time: resDate.toISOString(),
         status: res.status || 'confirmed',
         notes: res.notes?.trim() || null,
@@ -1428,14 +1712,155 @@ export const Storage = {
     return list.filter((o) => o.branch_id === branchId || !o.branch_id)
   },
 
-  saveOrder(order: Order): void {
+  saveOrder(branchIdOrOrder: string | Order, maybeOrder?: Order): void {
+    const order = (typeof branchIdOrOrder === 'string' ? maybeOrder : branchIdOrOrder) as Order
+    if (!order) return
+
     const list = getStored<Order[]>('kpos_orders', INITIAL_ORDERS)
     const idx = list.findIndex((o) => o.id === order.id)
+    const prevOrder = idx >= 0 ? list[idx] : null
+
     if (idx >= 0) {
       list[idx] = order
     } else {
       list.unshift(order)
     }
     setStored('kpos_orders', list)
+
+    // Authoritative Customer Spend updates (Rule 2.4):
+    // Only completed orders count towards total_spent and total_orders.
+    // If an order transitions to completed: add spend.
+    // If an order transitions from completed to cancelled: reverse spend.
+    const customerPhone = order.customer_phone?.trim()
+    const customerId = order.customer_id
+    if (customerId || customerPhone) {
+      const customers = Storage.getCustomers(order.branch_id)
+      const cust = customerId
+        ? customers.find((c) => c.id === customerId)
+        : (customerPhone ? customers.find((c) => normalizePhoneNumber(c.phone) === normalizePhoneNumber(customerPhone)) : null)
+
+      if (cust) {
+        let deltaOrders = 0
+        let deltaSpent = 0
+
+        const wasCompleted = prevOrder?.status === 'completed'
+        const isCompleted = order.status === 'completed'
+
+        if (!wasCompleted && isCompleted) {
+          deltaOrders = 1
+          deltaSpent = order.total
+        } else if (wasCompleted && order.status === 'cancelled') {
+          deltaOrders = -1
+          deltaSpent = -order.total
+        }
+
+        if (deltaOrders !== 0 || deltaSpent !== 0) {
+          Storage.saveCustomer(order.branch_id, {
+            id: cust.id,
+            name: cust.name,
+            phone: cust.phone,
+            total_orders: Math.max(0, (cust.total_orders || 0) + deltaOrders),
+            total_spent: Math.max(0, (cust.total_spent || 0) + deltaSpent),
+            last_visit_at: isCompleted ? new Date().toISOString() : cust.last_visit_at,
+            last_order_at: isCompleted ? new Date().toISOString() : cust.last_order_at,
+          })
+        }
+      }
+    }
+
+    // Update deal redemptions count if newly completed and has deal_id
+    if (order.deal_id && order.status === 'completed' && prevOrder?.status !== 'completed') {
+      const deals = getStored<Deal[]>('kpos_deals', INITIAL_DEALS)
+      const dIdx = deals.findIndex((d) => d.id === order.deal_id)
+      if (dIdx !== -1) {
+        deals[dIdx].times_redeemed = (deals[dIdx].times_redeemed || 0) + 1
+        setStored('kpos_deals', deals)
+      }
+    }
+  },
+
+  // Deals & Promotions
+  getDeals(branchId?: string): Deal[] {
+    const list = getStored<Deal[]>('kpos_deals', INITIAL_DEALS)
+    let modified = false
+    for (const initDeal of INITIAL_DEALS) {
+      if (!list.some((d) => d.id === initDeal.id)) {
+        list.push(initDeal)
+        modified = true
+      }
+    }
+    if (modified) {
+      setStored('kpos_deals', list)
+    }
+    if (!branchId) return list
+    return list.filter((d) => !d.branch_id || d.branch_id === branchId)
+  },
+
+  saveDeal(branchId: string, deal: Partial<Deal>): Deal {
+    if (!deal.name?.trim()) throw new Error('Deal name is required')
+    if (!deal.deal_type) throw new Error('Deal type is required')
+    if (deal.discount_value === undefined || deal.discount_value < 0) {
+      throw new Error('Valid discount value is required')
+    }
+
+    const list = getStored<Deal[]>('kpos_deals', INITIAL_DEALS)
+    let saved: Deal
+
+    if (deal.id) {
+      const idx = list.findIndex((d) => d.id === deal.id)
+      if (idx === -1) throw new Error('Deal not found')
+      saved = {
+        ...list[idx],
+        ...deal,
+        name: deal.name.trim(),
+        updated_at: new Date().toISOString(),
+      } as Deal
+      list[idx] = saved
+    } else {
+      saved = {
+        id: 'deal-' + Date.now(),
+        branch_id: branchId,
+        name: deal.name.trim(),
+        description: deal.description?.trim() || null,
+        deal_type: deal.deal_type,
+        discount_type: deal.discount_type || 'fixed',
+        discount_value: deal.discount_value || 0,
+        combo_price: deal.combo_price ?? null,
+        min_order_amount: deal.min_order_amount ?? 0,
+        max_discount_amount: deal.max_discount_amount ?? null,
+        applicable_order_types: deal.applicable_order_types || ['dine_in', 'takeaway', 'delivery'],
+        applicable_weekdays: deal.applicable_weekdays || [0, 1, 2, 3, 4, 5, 6],
+        start_time: deal.start_time || new Date().toISOString(),
+        end_time: deal.end_time || null,
+        is_active: deal.is_active ?? true,
+        is_stackable: deal.is_stackable ?? false,
+        redemption_limit: deal.redemption_limit ?? null,
+        per_customer_limit: deal.per_customer_limit ?? null,
+        times_redeemed: 0,
+        internal_notes: deal.internal_notes?.trim() || null,
+        items: deal.items || [],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }
+      list.unshift(saved)
+    }
+
+    setStored('kpos_deals', list)
+    return saved
+  },
+
+  toggleDealActive(dealId: string, isActive: boolean): void {
+    const list = getStored<Deal[]>('kpos_deals', INITIAL_DEALS)
+    const idx = list.findIndex((d) => d.id === dealId)
+    if (idx !== -1) {
+      list[idx] = { ...list[idx], is_active: isActive, updated_at: new Date().toISOString() }
+      setStored('kpos_deals', list)
+    }
+  },
+
+  deleteDeal(dealId: string): void {
+    const list = getStored<Deal[]>('kpos_deals', INITIAL_DEALS)
+    const filtered = list.filter((d) => d.id !== dealId)
+    setStored('kpos_deals', filtered)
   },
 }

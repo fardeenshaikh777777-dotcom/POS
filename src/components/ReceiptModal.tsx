@@ -88,10 +88,16 @@ export function ReceiptModal({ order, onClose }: ReceiptModalProps) {
             <span>Subtotal:</span>
             <span>{formatPKR(order.subtotal)}</span>
           </div>
-          {order.discount > 0 && (
+          {order.deal_discount && order.deal_discount > 0 ? (
+            <div className="receipt-row" style={{ color: '#2f7d57' }}>
+              <span>🏷️ Deal Promotion:</span>
+              <span>-{formatPKR(order.deal_discount)}</span>
+            </div>
+          ) : null}
+          {order.discount > (order.deal_discount || 0) && (
             <div className="receipt-row" style={{ color: 'var(--danger)' }}>
-              <span>Discount:</span>
-              <span>-{formatPKR(order.discount)}</span>
+              <span>Manual Discount:</span>
+              <span>-{formatPKR(order.discount - (order.deal_discount || 0))}</span>
             </div>
           )}
           {order.tax > 0 && (

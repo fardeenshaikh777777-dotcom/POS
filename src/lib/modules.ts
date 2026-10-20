@@ -6,6 +6,7 @@ export type ModuleKey =
   | 'orders'
   | 'kitchen'
   | 'menu'
+  | 'deals'
   | 'tables'
   | 'inventory'
   | 'purchasing'
@@ -32,6 +33,7 @@ export const MODULES: readonly ModuleDef[] = [
   { key: 'orders', path: '/orders', label: 'Orders', description: 'Live order tracking, receipts, and rider management', roles: ['owner', 'manager', 'cashier', 'waiter'] },
   { key: 'kitchen', path: '/kitchen', label: 'Kitchen KDS', description: 'Real-time order tickets for kitchen display', roles: ['owner', 'manager', 'kitchen'] },
   { key: 'menu', path: '/menu', label: 'Menu & Prices', description: 'Categories, dishes, availability, and pricing', roles: ['owner', 'manager'] },
+  { key: 'deals', path: '/deals', label: 'Deals & Promos', description: 'Combos, discounts, BOGO offers, and promotion rules', roles: ['owner', 'manager', 'cashier'] },
   { key: 'tables', path: '/tables', label: 'Tables & Booking', description: 'Dining floor layout, occupancy, and reservations', roles: ['owner', 'manager', 'cashier', 'waiter'] },
   { key: 'inventory', path: '/inventory', label: 'Inventory & Recipes', description: 'Ingredients, stock adjustments, and dish recipes', roles: ['owner', 'manager', 'kitchen'] },
   { key: 'purchasing', path: '/purchasing', label: 'Purchasing', description: 'Suppliers, purchase orders, and stock receipts', roles: ['owner', 'manager'] },

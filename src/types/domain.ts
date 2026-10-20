@@ -66,6 +66,7 @@ export interface TableReservation {
   id: string
   branch_id: string
   table_id: string
+  customer_id?: string | null
   customer_name: string
   customer_phone: string
   guest_count: number
@@ -74,6 +75,7 @@ export interface TableReservation {
   notes?: string | null
   created_at: string
   table?: DiningTable
+  customer?: Customer
 }
 
 export interface OrderItem {
@@ -97,6 +99,7 @@ export interface Order {
   type: OrderType
   status: OrderStatus
   table_id?: string | null
+  customer_id?: string | null
   customer_name?: string | null
   customer_phone?: string | null
   delivery_address?: string | null
@@ -108,6 +111,8 @@ export interface Order {
   rider_cash_handed_over: boolean
   subtotal: number
   discount: number
+  deal_id?: string | null
+  deal_discount?: number
   tax: number
   total: number
   notes?: string | null
@@ -117,6 +122,8 @@ export interface Order {
   items?: OrderItem[]
   payments?: Payment[]
   table?: DiningTable
+  deal?: Deal
+  customer?: Customer
 }
 
 export interface Payment {
@@ -246,6 +253,8 @@ export interface Expense {
   created_at: string
 }
 
+export type MarketingConsent = 'opted_in' | 'opted_out' | 'unspecified'
+
 export interface Customer {
   id: string
   branch_id: string
@@ -256,7 +265,53 @@ export interface Customer {
   notes?: string | null
   total_orders: number
   total_spent: number
+  last_visit_at?: string | null
+  last_order_at?: string | null
+  last_reservation_at?: string | null
+  marketing_consent: MarketingConsent
+  marketing_consent_at?: string | null
+  marketing_consent_source?: string | null
   created_at: string
+}
+
+export type DealType = 'combo' | 'percentage_discount' | 'flat_discount' | 'bogo' | 'item_discount'
+export type DiscountType = 'fixed' | 'percentage' | 'combo_price' | 'free_item'
+
+export interface DealItem {
+  id: string
+  deal_id: string
+  menu_item_id?: string | null
+  category_id?: string | null
+  required_quantity: number
+  is_free: boolean
+  menu_item?: MenuItem
+  category?: MenuCategory
+}
+
+export interface Deal {
+  id: string
+  branch_id: string
+  name: string
+  description?: string | null
+  deal_type: DealType
+  discount_type: DiscountType
+  discount_value: number
+  combo_price?: number | null
+  min_order_amount?: number | null
+  max_discount_amount?: number | null
+  applicable_order_types: OrderType[]
+  applicable_weekdays: number[] // 0 = Sunday, 1 = Monday ... 6 = Saturday
+  start_time: string
+  end_time?: string | null
+  is_active: boolean
+  is_stackable: boolean
+  redemption_limit?: number | null
+  per_customer_limit?: number | null
+  times_redeemed: number
+  internal_notes?: string | null
+  created_at: string
+  updated_at: string
+  items?: DealItem[]
 }
 
 export interface DashboardMetrics {

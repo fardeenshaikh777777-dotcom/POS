@@ -12,6 +12,7 @@ const PosPage = lazy(() => import('@/features/pos/PosPage').then((m) => ({ defau
 const OrdersPage = lazy(() => import('@/features/orders/OrdersPage').then((m) => ({ default: m.OrdersPage })))
 const KitchenPage = lazy(() => import('@/features/kitchen/KitchenPage').then((m) => ({ default: m.KitchenPage })))
 const MenuPage = lazy(() => import('@/features/menu/MenuPage').then((m) => ({ default: m.MenuPage })))
+const DealsPage = lazy(() => import('@/features/deals/DealsPage').then((m) => ({ default: m.DealsPage })))
 const TablesPage = lazy(() => import('@/features/tables/TablesPage').then((m) => ({ default: m.TablesPage })))
 const InventoryPage = lazy(() => import('@/features/inventory/InventoryPage').then((m) => ({ default: m.InventoryPage })))
 const PurchasingPage = lazy(() => import('@/features/purchasing/PurchasingPage').then((m) => ({ default: m.PurchasingPage })))
@@ -49,6 +50,8 @@ function getModuleComponent(key: string) {
       return <KitchenPage />
     case 'menu':
       return <MenuPage />
+    case 'deals':
+      return <DealsPage />
     case 'tables':
       return <TablesPage />
     case 'inventory':

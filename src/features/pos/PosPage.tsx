@@ -14,8 +14,10 @@ import {
   flushOfflineQueue,
 } from './api'
 import { fetchActiveCashSession } from '@/features/cash/api'
+import { fetchActiveDeals } from '@/features/deals/api'
+import { checkDealEligibility, calculateDealDiscount } from '@/lib/pricingEngine'
 import { ReceiptModal } from '@/components/ReceiptModal'
-import type { MenuCategory, MenuItem, DiningTable, OrderType, PaymentMethod, Order } from '@/types/domain'
+import type { MenuCategory, MenuItem, DiningTable, OrderType, PaymentMethod, Order, Deal, Customer } from '@/types/domain'
 
 interface CartItem {
   menuItem: MenuItem
@@ -99,6 +101,9 @@ export function PosPage() {
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [deliveryAddress, setDeliveryAddress] = useState('')
+  const [matchedCustomer, setMatchedCustomer] = useState<Customer | null>(null)
+  const [activeDeals, setActiveDeals] = useState<Deal[]>([])
+  const [selectedDealId, setSelectedDealId] = useState<string>('')
   const [discountAmount, setDiscountAmount] = useState<number>(0)
   const [orderNotes, setOrderNotes] = useState('')
   const [cart, setCart] = useState<CartItem[]>([])
@@ -120,15 +125,17 @@ export function PosPage() {
     setLoading(true)
     setError(null)
     try {
-      const [cats, mItems, tList, session] = await Promise.all([
+      const [cats, mItems, tList, session, dealsData] = await Promise.all([
         fetchMenuCategories(branchId),
         fetchMenuItems(branchId),
         fetchDiningTables(branchId),
         fetchActiveCashSession(branchId),
+        fetchActiveDeals(branchId),
       ])
       setCategories(cats)
       setItems(mItems)
       setTables(tList)
+      setActiveDeals(dealsData)
       if (tList.length > 0) {
         setSelectedTableId((prev) => prev || tList[0].id)
       }
@@ -151,9 +158,14 @@ export function PosPage() {
     if (val.length >= 7) {
       const results = await searchCustomers(branchId, val)
       if (results.length > 0) {
+        setMatchedCustomer(results[0])
         setCustomerName(results[0].name)
         if (results[0].address) setDeliveryAddress(results[0].address)
+      } else {
+        setMatchedCustomer(null)
       }
+    } else {
+      setMatchedCustomer(null)
     }
   }
 
@@ -195,7 +207,27 @@ export function PosPage() {
     return cart.reduce((acc, ci) => acc + ci.menuItem.price * ci.quantity, 0)
   }, [cart])
 
-  const discount = Math.min(discountAmount, subtotal)
+  const selectedDeal = useMemo(() => {
+    return activeDeals.find((d) => d.id === selectedDealId) || null
+  }, [activeDeals, selectedDealId])
+
+  const dealEligibility = useMemo(() => {
+    if (!selectedDeal) return { isEligible: true, discount: 0, reason: '', summary: '' }
+    const check = checkDealEligibility(selectedDeal, {
+      orderType,
+      subtotal,
+      cart,
+    })
+    if (!check.isEligible) {
+      return { isEligible: false, discount: 0, reason: check.reason || 'Not eligible', summary: '' }
+    }
+    const calc = calculateDealDiscount(selectedDeal, cart, orderType)
+    return { isEligible: true, discount: calc.dealDiscount, reason: '', summary: calc.summary }
+  }, [selectedDeal, orderType, subtotal, cart])
+
+  const dealDiscount = dealEligibility.isEligible ? dealEligibility.discount : 0
+  const manualDiscount = Math.min(discountAmount, Math.max(0, subtotal - dealDiscount))
+  const discount = dealDiscount + manualDiscount
   const taxableAmount = Math.max(0, subtotal - discount)
   const tax = Math.round(taxableAmount * 0.13) // 13% SST
   const deliveryFee = orderType === 'delivery' ? 150 : 0
@@ -243,11 +275,14 @@ export function PosPage() {
         clientRequestId: clientReqId,
         type: orderType,
         tableId: orderType === 'dine_in' ? selectedTableId : null,
+        customerId: matchedCustomer?.id || null,
         customerName: customerName || (orderType === 'dine_in' ? 'Dine-In Guest' : 'Takeaway Customer'),
         customerPhone,
         deliveryAddress: orderType === 'delivery' ? deliveryAddress : null,
         notes: orderNotes,
-        discount,
+        dealId: selectedDealId || null,
+        dealDiscount,
+        discount: manualDiscount,
         deliveryFee,
         items: cart.map((ci) => ({
           menu_item_id: ci.menuItem.id,
@@ -277,6 +312,7 @@ export function PosPage() {
         type: orderType,
         status: 'sent_to_kitchen',
         table_id: selectedTableId,
+        customer_id: matchedCustomer?.id || null,
         customer_name: customerName || (orderType === 'dine_in' ? 'Dine-In Guest' : 'Takeaway Customer'),
         customer_phone: customerPhone,
         delivery_address: deliveryAddress,
@@ -284,6 +320,8 @@ export function PosPage() {
         rider_cash_collected: 0,
         rider_cash_handed_over: false,
         subtotal,
+        deal_id: selectedDealId || null,
+        deal_discount: dealDiscount,
         discount,
         tax,
         total,
@@ -328,11 +366,13 @@ export function PosPage() {
 
       // Clear cart
       setCart([])
+      setSelectedDealId('')
       setDiscountAmount(0)
       setOrderNotes('')
       setCustomerName('')
       setCustomerPhone('')
       setDeliveryAddress('')
+      setMatchedCustomer(null)
     } catch (err) {
       alert(`Order error: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
@@ -351,11 +391,14 @@ export function PosPage() {
         clientRequestId: clientReqId,
         type: orderType,
         tableId: orderType === 'dine_in' ? selectedTableId : null,
+        customerId: matchedCustomer?.id || null,
         customerName: customerName || (orderType === 'dine_in' ? 'Dine-In Guest' : 'Takeaway Customer'),
         customerPhone,
         deliveryAddress: orderType === 'delivery' ? deliveryAddress : null,
         notes: orderNotes,
-        discount,
+        dealId: selectedDealId || null,
+        dealDiscount,
+        discount: manualDiscount,
         deliveryFee,
         items: cart.map((ci) => ({
           menu_item_id: ci.menuItem.id,
@@ -373,6 +416,7 @@ export function PosPage() {
         type: orderType,
         status: 'sent_to_kitchen',
         table_id: selectedTableId,
+        customer_id: matchedCustomer?.id || null,
         customer_name: customerName || (orderType === 'dine_in' ? 'Dine-In Guest' : 'Takeaway Customer'),
         customer_phone: customerPhone,
         delivery_address: deliveryAddress,
@@ -380,6 +424,8 @@ export function PosPage() {
         rider_cash_collected: 0,
         rider_cash_handed_over: false,
         subtotal,
+        deal_id: selectedDealId || null,
+        deal_discount: dealDiscount,
         discount,
         tax,
         total,
@@ -409,11 +455,12 @@ export function PosPage() {
 
       setCompletedOrder(kitchenOrder)
       setCart([])
+      setSelectedDealId('')
       setDiscountAmount(0)
       setOrderNotes('')
       setCustomerName('')
       setCustomerPhone('')
-      setDeliveryAddress('')
+      setMatchedCustomer(null)
     } catch (err) {
       alert(`Order error: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
@@ -541,34 +588,40 @@ export function PosPage() {
                 </div>
               )}
 
-              {/* Delivery / Customer Details */}
-              {(orderType === 'delivery' || orderType === 'takeaway') && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
+              {/* Customer Details & CRM Lookup */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
+                <Field
+                  id="phone"
+                  label="Customer Phone (03xx-xxxxxxx)"
+                  value={customerPhone}
+                  onChange={(e) => handlePhoneChange(e.target.value)}
+                  placeholder="Enter phone to auto-lookup customer"
+                />
+                <Field
+                  id="name"
+                  label="Customer Name"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Guest name (optional for dine-in)"
+                />
+                {matchedCustomer && (
+                  <div style={{ background: 'var(--surface-muted)', border: '1px solid var(--border)', padding: '6px 10px', borderRadius: 'var(--radius)', fontSize: '11px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>👤 <strong>{matchedCustomer.name}</strong> ({matchedCustomer.total_orders} orders · Spent: {formatPKR(matchedCustomer.total_spent)})</span>
+                    <Badge tone={matchedCustomer.marketing_consent === 'opted_in' ? 'ok' : 'neutral'}>
+                      {matchedCustomer.marketing_consent === 'opted_in' ? '🔔 Opted-In' : 'Standard'}
+                    </Badge>
+                  </div>
+                )}
+                {orderType === 'delivery' && (
                   <Field
-                    id="phone"
-                    label="Customer Phone (03xx-xxxxxxx)"
-                    value={customerPhone}
-                    onChange={(e) => handlePhoneChange(e.target.value)}
-                    placeholder="Enter phone to auto-lookup customer"
+                    id="address"
+                    label="Delivery Address in Karachi"
+                    value={deliveryAddress}
+                    onChange={(e) => setDeliveryAddress(e.target.value)}
+                    placeholder="e.g. House 45, Street 10, Clifton Block 4"
                   />
-                  <Field
-                    id="name"
-                    label="Customer Name"
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="Guest name"
-                  />
-                  {orderType === 'delivery' && (
-                    <Field
-                      id="address"
-                      label="Delivery Address in Karachi"
-                      value={deliveryAddress}
-                      onChange={(e) => setDeliveryAddress(e.target.value)}
-                      placeholder="e.g. House 45, Street 10, Clifton Block 4"
-                    />
-                  )}
-                </div>
-              )}
+                )}
+              </div>
 
               {/* Cart Items List */}
               <div style={{ maxHeight: '240px', overflowY: 'auto', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: '8px 0', margin: '8px 0' }}>
@@ -607,7 +660,51 @@ export function PosPage() {
                 )}
               </div>
 
-              {/* Order Notes & Discount */}
+              {/* Deals & Promotions Selector */}
+              <div style={{ border: '1px solid var(--border)', padding: '10px', borderRadius: 'var(--radius)', background: 'var(--surface-muted)', margin: '8px 0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label className="field__label" style={{ margin: 0, fontWeight: 600 }}>🏷️ Apply Deal / Promotion</label>
+                  {selectedDeal && (
+                    <button
+                      type="button"
+                      style={{ background: 'none', border: 'none', color: 'var(--danger)', fontSize: '11px', cursor: 'pointer', padding: 0 }}
+                      onClick={() => setSelectedDealId('')}
+                    >
+                      Clear Deal
+                    </button>
+                  )}
+                </div>
+
+                <select
+                  className="input"
+                  value={selectedDealId}
+                  onChange={(e) => setSelectedDealId(e.target.value)}
+                  style={{ width: '100%', fontSize: 'var(--fs-sm)' }}
+                >
+                  <option value="">No Deal Applied (Standard Pricing)</option>
+                  {activeDeals.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.name} ({d.deal_type.toUpperCase().replace('_', ' ')})
+                    </option>
+                  ))}
+                </select>
+
+                {selectedDeal && (
+                  <div style={{ marginTop: '6px' }}>
+                    {dealEligibility.isEligible ? (
+                      <div style={{ background: 'var(--ok-bg, #dcefe4)', color: 'var(--ok, #2f7d57)', padding: '6px 10px', borderRadius: 'var(--radius)', fontSize: '12px' }}>
+                        ✅ {dealEligibility.summary} (Saves {formatPKR(dealDiscount)})
+                      </div>
+                    ) : (
+                      <div style={{ background: 'var(--warn-bg, #fef3c7)', color: 'var(--warn-text, #92400e)', padding: '6px 10px', borderRadius: 'var(--radius)', fontSize: '12px' }}>
+                        ⚠️ Ineligible: {dealEligibility.reason}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Order Notes & Manual Discount */}
               <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
                 <input
                   type="text"
@@ -619,11 +716,12 @@ export function PosPage() {
                 />
                 <input
                   type="number"
-                  placeholder="Discount Rs."
+                  placeholder="Manual Disc. Rs."
                   className="input num"
                   value={discountAmount || ''}
                   onChange={(e) => setDiscountAmount(parseFloat(e.target.value) || 0)}
-                  style={{ width: '110px', fontSize: 'var(--fs-sm)' }}
+                  style={{ width: '125px', fontSize: 'var(--fs-sm)' }}
+                  title="Manual staff discount override"
                 />
               </div>
 
@@ -633,10 +731,16 @@ export function PosPage() {
                   <span>Subtotal:</span>
                   <span className="num">{formatPKR(subtotal)}</span>
                 </div>
-                {discount > 0 && (
+                {dealDiscount > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--ok, #2f7d57)' }}>
+                    <span>🏷️ Deal Discount ({selectedDeal?.name}):</span>
+                    <span className="num">-{formatPKR(dealDiscount)}</span>
+                  </div>
+                )}
+                {manualDiscount > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--danger)' }}>
-                    <span>Discount:</span>
-                    <span className="num">-{formatPKR(discount)}</span>
+                    <span>Manual Discount:</span>
+                    <span className="num">-{formatPKR(manualDiscount)}</span>
                   </div>
                 )}
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>

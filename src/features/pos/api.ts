@@ -11,10 +11,13 @@ export interface CreateOrderParams {
   clientRequestId: string
   type: OrderType
   tableId?: string | null
+  customerId?: string | null
   customerName?: string | null
   customerPhone?: string | null
   deliveryAddress?: string | null
   notes?: string | null
+  dealId?: string | null
+  dealDiscount?: number
   discount?: number
   deliveryFee?: number
   items: Array<{
@@ -254,10 +257,32 @@ function simulateLocalCreateOrder(params: CreateOrderParams) {
       })
     }
   }
-  const discount = params.discount || 0
-  const tax = Math.round((subtotal - discount) * 0.13)
+  const dealDiscount = params.dealDiscount || 0
+  const manualDiscount = params.discount || 0
+  const totalDiscount = dealDiscount + manualDiscount
+  const discountedSubtotal = Math.max(0, subtotal - totalDiscount)
+  const tax = Math.round(discountedSubtotal * 0.13)
   const delivery = params.deliveryFee || 0
-  const total = (subtotal - discount) + tax + delivery
+  const total = discountedSubtotal + tax + delivery
+
+  // Link or auto-match customer if phone provided
+  let linkedCustomerId = params.customerId || null
+  if (params.customerPhone?.trim()) {
+    const allCusts = Storage.getCustomers(params.branchId)
+    const matched = allCusts.find((c) => c.phone.replace(/[\s-]/g, '') === params.customerPhone!.replace(/[\s-]/g, ''))
+    if (matched) {
+      linkedCustomerId = matched.id
+    } else if (params.customerName?.trim()) {
+      const newCust = Storage.saveCustomer(params.branchId, {
+        name: params.customerName.trim(),
+        phone: params.customerPhone.trim(),
+        address: params.deliveryAddress || null,
+        marketing_consent: 'unspecified',
+        marketing_consent_source: 'pos',
+      })
+      linkedCustomerId = newCust.id
+    }
+  }
 
   // Sequential order number from Storage
   const existingOrders = Storage.getOrders(params.branchId)
@@ -274,6 +299,7 @@ function simulateLocalCreateOrder(params: CreateOrderParams) {
     type: params.type,
     status: 'sent_to_kitchen',
     table_id: params.tableId || null,
+    customer_id: linkedCustomerId,
     customer_name: params.customerName || (params.type === 'dine_in' ? 'Dine-In Guest' : 'Takeaway Customer'),
     customer_phone: params.customerPhone || null,
     delivery_address: params.deliveryAddress || null,
@@ -281,7 +307,9 @@ function simulateLocalCreateOrder(params: CreateOrderParams) {
     rider_cash_collected: 0,
     rider_cash_handed_over: false,
     subtotal,
-    discount,
+    deal_id: params.dealId || null,
+    deal_discount: dealDiscount,
+    discount: totalDiscount,
     tax,
     total,
     notes: params.notes || null,

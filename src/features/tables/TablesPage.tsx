@@ -8,7 +8,7 @@ import {
   updateReservationStatus,
   saveTableRecord,
 } from './api'
-import type { DiningTable, TableReservation } from '@/types/domain'
+import type { DiningTable, TableReservation, MarketingConsent } from '@/types/domain'
 
 export function TablesPage() {
   const { profile } = useAuth()
@@ -37,6 +37,7 @@ export function TablesPage() {
     reservationTime: string
     notes?: string
     status?: TableReservation['status']
+    marketingConsent?: MarketingConsent
   } | null>(null)
   const [resSubmitting, setResSubmitting] = useState(false)
 
@@ -104,6 +105,7 @@ export function TablesPage() {
       reservationTime: new Date(Date.now() + 3600000).toISOString().slice(0, 16),
       notes: '',
       status: 'confirmed',
+      marketingConsent: 'opted_in',
     })
     setResModalOpen(true)
   }
@@ -118,6 +120,7 @@ export function TablesPage() {
       reservationTime: new Date(r.reservation_time).toISOString().slice(0, 16),
       notes: r.notes || '',
       status: r.status,
+      marketingConsent: r.customer?.marketing_consent || 'opted_in',
     })
     setResModalOpen(true)
   }
@@ -135,6 +138,7 @@ export function TablesPage() {
         reservationTime: new Date(editingRes.reservationTime).toISOString(),
         notes: editingRes.notes,
         status: editingRes.status,
+        marketingConsent: editingRes.marketingConsent,
       })
       setResModalOpen(false)
       setEditingRes(null)
@@ -174,11 +178,21 @@ export function TablesPage() {
     },
     {
       key: 'guest',
-      header: 'Guest Info',
+      header: 'Guest Info & CRM',
       render: (r) => (
         <div>
-          <strong>{r.customer_name}</strong>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <strong>{r.customer_name}</strong>
+            {r.customer_id && (
+              <Badge tone="info">CRM</Badge>
+            )}
+          </div>
           <span className="muted" style={{ display: 'block', fontSize: 'var(--fs-xs)' }}>{r.customer_phone}</span>
+          {r.customer && r.customer.total_orders > 0 && (
+            <span style={{ display: 'block', fontSize: '11px', color: 'var(--amber-text, #b8860b)' }}>
+              ⭐ {r.customer.total_orders} orders ({r.customer.marketing_consent === 'opted_in' ? '🔔 Promo Opted' : '🔕 Opted Out'})
+            </span>
+          )}
           {r.notes && <span className="muted" style={{ display: 'block', fontSize: '11px', fontStyle: 'italic' }}>Note: {r.notes}</span>}
         </div>
       ),
@@ -411,6 +425,26 @@ export function TablesPage() {
                 value={editingRes.notes || ''}
                 onChange={(e) => setEditingRes({ ...editingRes, notes: e.target.value })}
               />
+
+              <div style={{ border: '1px solid var(--border)', padding: '12px', borderRadius: 'var(--radius)', background: 'var(--surface-muted)' }}>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', cursor: 'pointer', fontSize: 'var(--fs-sm)' }}>
+                  <input
+                    type="checkbox"
+                    checked={editingRes.marketingConsent === 'opted_in'}
+                    onChange={(e) => setEditingRes({
+                      ...editingRes,
+                      marketingConsent: e.target.checked ? 'opted_in' : 'opted_out'
+                    })}
+                    style={{ marginTop: '3px' }}
+                  />
+                  <div>
+                    <strong>Marketing Consent for Promotions & Deals</strong>
+                    <span className="muted" style={{ display: 'block', fontSize: 'var(--fs-xs)', marginTop: '2px' }}>
+                      Guest agreed to receive promotional combo deals and special event discounts via SMS/WhatsApp. Operational booking notices are always sent regardless of this setting.
+                    </span>
+                  </div>
+                </label>
+              </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '16px' }}>
                 <Button variant="ghost" onClick={() => setResModalOpen(false)}>
