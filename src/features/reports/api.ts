@@ -7,6 +7,8 @@ export interface SalesReportData {
   discounts: number
   taxCollected: number
   netSales: number
+  totalExpenses: number
+  netProfit: number
   orderCount: number
   avgTicket: number
   paymentsBreakdown: Record<string, number>
@@ -15,7 +17,7 @@ export interface SalesReportData {
   dailyTrend: Array<{ date: string; sales: number; orders: number }>
 }
 
-function computeReportFromOrders(orders: Order[], startDate: string, endDate: string): SalesReportData {
+function computeReportFromOrders(orders: Order[], startDate: string, endDate: string, branchId?: string): SalesReportData {
   const filtered = orders.filter((o) => {
     const oDate = o.business_date || (o.created_at ? o.created_at.slice(0, 10) : '')
     return oDate >= startDate && oDate <= endDate
@@ -105,11 +107,22 @@ function computeReportFromOrders(orders: Order[], startDate: string, endDate: st
     .sort(([dA], [dB]) => dA.localeCompare(dB))
     .map(([date, stat]) => ({ date, sales: stat.sales, orders: stat.orders }))
 
+  // Calculate operational expenses for the period
+  const expenses = branchId ? Storage.getExpenses(branchId) : Storage.getExpenses('635c7b14-54be-4b93-a75a-e2ddc0323827')
+  const filteredExpenses = expenses.filter((e) => {
+    const eDate = e.created_at ? e.created_at.slice(0, 10) : ''
+    return eDate >= startDate && eDate <= endDate
+  })
+  const totalExpenses = filteredExpenses.reduce((acc, e) => acc + (e.amount || 0), 0)
+  const netProfit = netSales - totalExpenses
+
   return {
     grossSales,
     discounts,
     taxCollected,
     netSales,
+    totalExpenses,
+    netProfit,
     orderCount,
     avgTicket,
     paymentsBreakdown,
@@ -134,7 +147,7 @@ export async function fetchSalesReport(
         .lte('business_date', endDate)
 
       if (!error && dbOrders && dbOrders.length > 0) {
-        return computeReportFromOrders(dbOrders as Order[], startDate, endDate)
+        return computeReportFromOrders(dbOrders as Order[], startDate, endDate, branchId)
       }
 
       // Try RPC fallback if direct table query was empty
@@ -145,11 +158,15 @@ export async function fetchSalesReport(
       })
 
       if (metrics && metrics.total_orders > 0) {
+        const net = metrics.net_sales || 0
+        const exp = metrics.total_expenses || 0
         return {
           grossSales: metrics.gross_sales,
           discounts: metrics.total_discounts,
           taxCollected: metrics.total_tax,
-          netSales: metrics.net_sales,
+          netSales: net,
+          totalExpenses: exp,
+          netProfit: net - exp,
           orderCount: metrics.total_orders,
           avgTicket: metrics.average_order_value,
           paymentsBreakdown: metrics.payments_by_method || {},
@@ -171,5 +188,5 @@ export async function fetchSalesReport(
 
   // Compute live, audited metrics directly from real orders in Storage
   const orders = Storage.getOrders(branchId)
-  return computeReportFromOrders(orders, startDate, endDate)
+  return computeReportFromOrders(orders, startDate, endDate, branchId)
 }

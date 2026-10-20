@@ -157,8 +157,8 @@ export function ReportsPage() {
 
       {!loading && !error && report && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--s-5)', marginTop: 'var(--s-4)' }}>
-          {/* Top Level Financial Summary */}
-          <div className="grid-4">
+          {/* Top Level Financial Summary (Profit & Loss) */}
+          <div className="grid-5">
             <div className="stat-card">
               <span className="stat-card__label">Gross Food Sales</span>
               <span className="stat-card__val">{formatPKR(report.grossSales)}</span>
@@ -174,20 +174,36 @@ export function ReportsPage() {
             </div>
 
             <div className="stat-card">
-              <span className="stat-card__label">Sindh Sales Tax (13%)</span>
-              <span className="stat-card__val" style={{ color: 'var(--info)' }}>
-                {formatPKR(report.taxCollected)}
-              </span>
-              <span className="stat-card__hint">Government SST liability</span>
-            </div>
-
-            <div className="stat-card" style={{ border: '2px solid var(--amber-500)' }}>
               <span className="stat-card__label">Net Revenue</span>
               <span className="stat-card__val" style={{ color: 'var(--amber-600)' }}>
                 {formatPKR(report.netSales)}
               </span>
-              <span className="stat-card__hint">{report.orderCount} orders · Avg {formatPKR(report.avgTicket)}</span>
+              <span className="stat-card__hint">{report.orderCount} orders · SST {formatPKR(report.taxCollected)}</span>
             </div>
+
+            <div className="stat-card">
+              <span className="stat-card__label">Operating Expenses</span>
+              <span className="stat-card__val" style={{ color: '#FF5B26' }}>
+                {formatPKR(report.totalExpenses)}
+              </span>
+              <span className="stat-card__hint">Supplies, utilities & payouts</span>
+            </div>
+
+            {(() => {
+              const isProfitable = report.netProfit >= 0
+              const margin = report.netSales > 0 ? Math.round((report.netProfit / report.netSales) * 100) : 0
+              return (
+                <div className="stat-card" style={{ border: '2px solid var(--ok, #10B981)', background: 'var(--surface)' }}>
+                  <span className="stat-card__label" style={{ fontWeight: 700, color: 'var(--text)' }}>Net Operating Profit</span>
+                  <span className="stat-card__val" style={{ color: isProfitable ? 'var(--ok, #10B981)' : 'var(--danger)' }}>
+                    {formatPKR(report.netProfit)}
+                  </span>
+                  <span className="stat-card__hint" style={{ color: isProfitable ? 'var(--ok, #10B981)' : 'var(--danger)', fontWeight: 600 }}>
+                    {margin >= 0 ? `+${margin}% Profit Margin` : `${margin}% Margin`} (Revenue − Expenses)
+                  </span>
+                </div>
+              )
+            })()}
           </div>
 
           {/* Payment & Channel Breakdown */}

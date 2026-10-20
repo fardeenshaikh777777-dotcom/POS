@@ -227,6 +227,35 @@ export function DashboardPage() {
             <span>+7.5% Since last month</span>
           </div>
         </div>
+
+        {/* Card 5: Net Operating Profit */}
+        {(() => {
+          const netProfit = metrics.net_sales - metrics.total_expenses
+          const margin = metrics.net_sales > 0 ? Math.round((netProfit / metrics.net_sales) * 100) : 0
+          const isProfitable = netProfit >= 0
+          return (
+            <div className="kpi-card" style={{ border: '2px solid var(--ok, #10B981)', background: 'var(--surface)' }}>
+              <div className="kpi-head">
+                <span className="kpi-icon" style={{ color: 'var(--ok, #10B981)' }}>
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="12" y1="1" x2="12" y2="23" />
+                    <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                  </svg>
+                </span>
+                <span className="kpi-label" style={{ fontWeight: 700, color: 'var(--text)' }}>Net Operating Profit</span>
+              </div>
+              <div className="kpi-value num" style={{ color: isProfitable ? 'var(--ok, #10B981)' : 'var(--danger)' }}>
+                {formatPKR(netProfit)}
+              </div>
+              <div className={`kpi-pill ${isProfitable ? 'kpi-pill--ok' : 'kpi-pill--danger'}`}>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                  <polyline points={isProfitable ? "18 15 12 9 6 15" : "6 9 12 15 18 9"} />
+                </svg>
+                <span>{margin >= 0 ? `+${margin}% Margin` : `${margin}% Margin`}</span>
+              </div>
+            </div>
+          )
+        })()}
       </section>
 
       {/* 2. MAIN ANALYTICS ROW: Spline Chart Properly Situated (2fr) + POS Activities (1fr) */}

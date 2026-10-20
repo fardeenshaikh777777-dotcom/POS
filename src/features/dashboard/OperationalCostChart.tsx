@@ -198,13 +198,37 @@ export const OperationalCostChart = React.memo(function OperationalCostChart({
           <h2 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.02em' }}>
             Operational Cost Vs Revenue
           </h2>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginTop: '6px' }}>
-            <span className="num" style={{ fontSize: '30px', fontWeight: 800, color: 'var(--text)', letterSpacing: '-0.03em' }}>
-              {formatPKR(displayRevenue)}
-            </span>
-            <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-muted)' }}>
-              Revenue ({periodLabel}{activePt ? ` · ${activePt.label}` : ''})
-            </span>
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginTop: '6px' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+              <span className="num" style={{ fontSize: '28px', fontWeight: 800, color: 'var(--text)', letterSpacing: '-0.03em' }}>
+                {formatPKR(displayRevenue)}
+              </span>
+              <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-muted)' }}>
+                Revenue ({periodLabel}{activePt ? ` · ${activePt.label}` : ''})
+              </span>
+            </div>
+
+            {/* Live Profit & Cost Metric for Period */}
+            {(() => {
+              const ptCost = activePt ? activePt.cost : 0
+              const ptProfit = displayRevenue - ptCost
+              const margin = displayRevenue > 0 ? Math.round((ptProfit / displayRevenue) * 100) : 0
+              const isPos = ptProfit >= 0
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--surface-sunken, #F8FAFC)', padding: '5px 12px', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                    Cost: <strong style={{ color: '#FF5B26' }}>{formatPKR(ptCost)}</strong>
+                  </span>
+                  <span style={{ color: 'var(--border)' }}>|</span>
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600 }}>
+                    Net Profit: <strong style={{ color: isPos ? 'var(--ok, #10B981)' : 'var(--danger)' }}>{formatPKR(ptProfit)}</strong>
+                  </span>
+                  <span className={`badge ${isPos ? 'badge--ok' : 'badge--danger'}`} style={{ fontSize: '11px', padding: '2px 6px' }}>
+                    {margin >= 0 ? `+${margin}% Margin` : `${margin}% Margin`}
+                  </span>
+                </div>
+              )
+            })()}
           </div>
         </div>
 
@@ -418,6 +442,26 @@ export const OperationalCostChart = React.memo(function OperationalCostChart({
                   {activePt.sales >= 1000 ? `Rs. ${(activePt.sales / 1000).toFixed(1).replace('.0', '')}K` : `Rs. ${activePt.sales}`}
                 </text>
               </g>
+
+              {/* 3. Floating Net Profit Pill Badge */}
+              {(() => {
+                const profitVal = activePt.sales - activePt.cost
+                const isPos = profitVal >= 0
+                const badgeProfitX = Math.min(Math.max(activePt.x - 52, 75), 655)
+                const topY = Math.min(activePt.costY, activePt.salesY)
+                const badgeProfitY = Math.max(topY - 32, 2)
+                const profitText = isPos
+                  ? `Profit: +Rs. ${profitVal >= 1000 ? Math.round(profitVal / 1000) + 'K' : profitVal}`
+                  : `Loss: Rs. ${Math.abs(profitVal) >= 1000 ? Math.round(profitVal / 1000) + 'K' : profitVal}`
+                return (
+                  <g filter="url(#badgeShadow)">
+                    <rect x={badgeProfitX} y={badgeProfitY} width="104" height="22" rx="6" fill={isPos ? '#064E3B' : '#7F1D1D'} stroke={isPos ? '#10B981' : '#EF4444'} strokeWidth="1" />
+                    <text x={badgeProfitX + 52} y={badgeProfitY + 15} textAnchor="middle" fill="#FFFFFF" fontSize="10" fontWeight="700" fontFamily="var(--font-mono)">
+                      {profitText}
+                    </text>
+                  </g>
+                )
+              })()}
             </g>
           )}
 
