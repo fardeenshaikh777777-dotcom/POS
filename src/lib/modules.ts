@@ -2,7 +2,6 @@ import type { AppRole } from '@/types/domain'
 
 export type ModuleKey =
   | 'dashboard'
-  | 'ai-manager'
   | 'pos'
   | 'orders'
   | 'kitchen'
@@ -29,7 +28,6 @@ export interface ModuleDef {
  *  UI checks are convenience only; RLS/RPCs enforce real database authorization. */
 export const MODULES: readonly ModuleDef[] = [
   { key: 'dashboard', path: '/', label: 'Dashboard', description: 'Real-time sales, order stats, and live metrics', roles: ['owner', 'manager'] },
-  { key: 'ai-manager', path: '/ai-manager', label: 'AI Manager', description: 'Rule-based restaurant intelligence, margins, and operational decisions', roles: ['owner', 'manager'] },
   { key: 'pos', path: '/pos', label: 'POS & Billing', description: 'Counter, dine-in and delivery order creation', roles: ['owner', 'manager', 'cashier', 'waiter'] },
   { key: 'orders', path: '/orders', label: 'Orders', description: 'Live order tracking, receipts, and rider management', roles: ['owner', 'manager', 'cashier', 'waiter'] },
   { key: 'kitchen', path: '/kitchen', label: 'Kitchen KDS', description: 'Real-time order tickets for kitchen display', roles: ['owner', 'manager', 'kitchen'] },

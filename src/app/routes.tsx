@@ -8,7 +8,6 @@ import { MODULES, canAccess, defaultPathFor, type ModuleDef } from '@/lib/module
 
 // Code-split feature module pages for fast initial load & responsiveness
 const DashboardPage = lazy(() => import('@/features/dashboard/DashboardPage').then((m) => ({ default: m.DashboardPage })))
-const AiManagerPage = lazy(() => import('@/features/ai-manager/AiManagerPage').then((m) => ({ default: m.AiManagerPage })))
 const PosPage = lazy(() => import('@/features/pos/PosPage').then((m) => ({ default: m.PosPage })))
 const OrdersPage = lazy(() => import('@/features/orders/OrdersPage').then((m) => ({ default: m.OrdersPage })))
 const KitchenPage = lazy(() => import('@/features/kitchen/KitchenPage').then((m) => ({ default: m.KitchenPage })))
@@ -42,8 +41,6 @@ function getModuleComponent(key: string) {
   switch (key) {
     case 'dashboard':
       return <DashboardPage />
-    case 'ai-manager':
-      return <AiManagerPage />
     case 'pos':
       return <PosPage />
     case 'orders':

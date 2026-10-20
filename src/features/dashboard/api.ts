@@ -482,9 +482,9 @@ export async function fetchCompleteDashboardData(
     })
 
     const totalPay = cashSum + cardSum + onlineSum
-    let cashPct = totalPay > 0 ? Math.round((cashSum / totalPay) * 100) : 68
-    let cardPct = totalPay > 0 ? Math.round((cardSum / totalPay) * 100) : 22
-    let onlinePct = totalPay > 0 ? Math.max(0, 100 - cashPct - cardPct) : 10
+    const cashPct = totalPay > 0 ? Math.round((cashSum / totalPay) * 100) : 68
+    const cardPct = totalPay > 0 ? Math.round((cardSum / totalPay) * 100) : 22
+    const onlinePct = totalPay > 0 ? Math.max(0, 100 - cashPct - cardPct) : 10
 
     return {
       todaySales: sales,
